@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang="ka">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="Craftwood — ხელნაკეთი ავეჯი. ჩვენი ნამუშევრები და პროექტები.">
+  <title>Craftwood — ხელნაკეთი ავეჯი</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@500;700&family=Noto+Sans+Georgian:wght@400;500;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <header class="header">
+    <nav class="nav container">
+      <a href="#" class="logo">Craftwood</a>
+      <ul class="nav-links">
+        <li><a href="#gallery">გალერეა</a></li>
+        <li><a href="#about">ჩვენს შესახებ</a></li>
+        <li><a href="#contact">კონტაქტი</a></li>
+      </ul>
+      <button class="menu-toggle" aria-label="მენიუ" aria-expanded="false">
+        <span></span>
+        <span></span>
+        <span></span>
+      </button>
+    </nav>
+  </header>
+
+  <main>
+    <section class="hero">
+      <div class="hero-overlay"></div>
+      <div class="hero-content container">
+        <p class="hero-tag">ხელნაკეთი ავეჯი</p>
+        <h1>თქვენი სახლისთვის<br>უნიკალური ხე</h1>
+        <p class="hero-desc">ჩვენ ვქმნით ავეჯს, რომელიც ცოცხალი ხის სიბრძღვილეს და თქვენს სტილს აერთიანებს.</p>
+        <a href="#gallery" class="btn btn-primary">ნამუშევრების ნახვა</a>
+      </div>
+    </section>
+
+    <section id="gallery" class="gallery section">
+      <div class="container">
+        <div class="section-header">
+          <h2>ჩვენი ნამუშევრები</h2>
+          <p>გაეცანით ჩვენს უახლეს პროექტებს — მაგიდები, სკამები, კარადები და სხვა.</p>
+        </div>
+        <div class="gallery-grid" id="gallery-grid"></div>
+      </div>
+    </section>
+
+    <section id="about" class="about section">
+      <div class="container about-grid">
+        <div class="about-text">
+          <h2>Craftwood</h2>
+          <p>ჩვენ ვმუშაობთ ხარისხიან ხესთან და ვქმნით ავეჯს, რომელიც გამოირჩევა გამძლეობით, ესთეტიკითა და დეტალების ყურადღებით.</p>
+          <p>ყოველი ნაკეთობა ინდივიდუალურია — თქვენი სივრცისა და გემოვნების მიხედვით.</p>
+          <ul class="about-features">
+            <li>ხელნაკეთი ხარისხი</li>
+            <li>ინდივიდუალური დიზაინი</li>
+            <li>პრემიუმ მასალები</li>
+          </ul>
+        </div>
+        <div class="about-image">
+          <img src="images/placeholder-1.svg" alt="Craftwood ავეჯი" loading="lazy">
+        </div>
+      </div>
+    </section>
+
+    <section id="contact" class="contact section">
+      <div class="container contact-box">
+        <h2>დაგვიკავშირდით</h2>
+        <p>გსურთ ავეჯის შეკვეთა ან კონსულტაცია? მოგვწერეთ ან დაგვირეკეთ.</p>
+        <div class="contact-links">
+          <a href="tel:+995555000000" class="contact-item">
+            <span class="contact-label">ტელეფონი</span>
+            <span>+995 555 00 00 00</span>
+          </a>
+          <a href="mailto:info@craftwood.ge" class="contact-item">
+            <span class="contact-label">ელფოსტა</span>
+            <span>info@craftwood.ge</span>
+          </a>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer class="footer">
+    <div class="container">
+      <p>&copy; 2026 Craftwood. ყველა უფლება დაცულია.</p>
+    </div>
+  </footer>
+
+  <div class="lightbox" id="lightbox" aria-hidden="true">
+    <button class="lightbox-close" aria-label="დახურვა">&times;</button>
+    <button class="lightbox-prev" aria-label="წინა">&lsaquo;</button>
+    <button class="lightbox-next" aria-label="შემდეგი">&rsaquo;</button>
+    <img class="lightbox-img" src="" alt="">
+    <p class="lightbox-caption"></p>
+  </div>
+
+  <script src="js/main.js"></script>
+</body>
+</html>

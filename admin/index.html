@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html lang="ka">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Craftwood — ადმინ პანელი</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+Georgian:wght@400;500;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="admin.css">
+</head>
+<body>
+  <div class="admin">
+    <header class="admin-header">
+      <h1>Craftwood ადმინი</h1>
+      <a href="../index.html" class="back-link">← საიტზე დაბრუნება</a>
+    </header>
+
+    <section id="login-section" class="card">
+      <h2>შესვლა</h2>
+      <p class="hint">შეიყვანეთ GitHub Personal Access Token რეპოზიტორიის რედაქტირების უფლებით.</p>
+      <form id="login-form">
+        <label>
+          GitHub Token
+          <input type="password" id="token-input" required placeholder="ghp_...">
+        </label>
+        <label>
+          რეპოზიტორია
+          <input type="text" id="repo-input" required placeholder="username/craftwood">
+        </label>
+        <button type="submit" class="btn btn-primary">შესვლა</button>
+      </form>
+      <p class="help">
+        <a href="https://github.com/settings/tokens?type=beta" target="_blank" rel="noopener">ტოკენის შექმნა GitHub-ზე</a>
+        — მიუთითეთ მხოლოდ ამ რეპოზიტორი და „Contents: Read and write".
+      </p>
+    </section>
+
+    <section id="panel-section" class="hidden">
+      <div class="panel-top">
+        <p>შესული ხართ როგორც <strong id="user-name"></strong></p>
+        <button id="logout-btn" class="btn btn-ghost">გასვლა</button>
+      </div>
+
+      <div class="card">
+        <h2>ახალი ფოტოს დამატება</h2>
+        <form id="upload-form">
+          <label>
+            სურათი
+            <input type="file" id="image-input" accept="image/*" required>
+          </label>
+          <label>
+            სათაური
+            <input type="text" id="title-input" required placeholder="მაგ. მაგიდა — ნატურალური ხე">
+          </label>
+          <label>
+            კატეგორია
+            <input type="text" id="category-input" required placeholder="მაგ. მაგიდები">
+          </label>
+          <button type="submit" class="btn btn-primary" id="upload-btn">ატვირთვა</button>
+        </form>
+        <p id="status" class="status" aria-live="polite"></p>
+      </div>
+
+      <div class="card">
+        <h2>არსებული ნამუშევრები</h2>
+        <div id="items-list" class="items-list"></div>
+      </div>
+    </section>
+  </div>
+
+  <script src="../js/config.js"></script>
+  <script src="admin.js"></script>
+</body>
+</html>

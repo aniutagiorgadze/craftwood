@@ -1,0 +1,34 @@
+{
+  "items": [
+    {
+      "src": "images/placeholder-1.svg",
+      "title": "მაგიდა — ნატურალური ხე",
+      "category": "მაგიდები"
+    },
+    {
+      "src": "images/placeholder-2.svg",
+      "title": "სკამი — ხელნაკეთი",
+      "category": "სკამები"
+    },
+    {
+      "src": "images/placeholder-3.svg",
+      "title": "კარადა — მასივური ხე",
+      "category": "საცავები"
+    },
+    {
+      "src": "images/placeholder-4.svg",
+      "title": "თარო — ღია ხე",
+      "category": "თაროები"
+    },
+    {
+      "src": "images/placeholder-5.svg",
+      "title": "სამზარეულოს კუნთი",
+      "category": "სამზარეულო"
+    },
+    {
+      "src": "images/placeholder-6.svg",
+      "title": "საწოლის თავსაკეთი",
+      "category": "საძინებელი"
+    }
+  ]
+}
