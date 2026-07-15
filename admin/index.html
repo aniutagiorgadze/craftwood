@@ -34,6 +34,16 @@
         <button id="logout-btn" class="btn btn-ghost">გასვლა</button>
       </div>
 
+      <div id="token-setup" class="card hidden">
+        <h2>GitHub ტოკენი (ატვირთვისთვის)</h2>
+        <p class="hint">ერთხელ შეიყვანეთ Classic ტოკენი (repo). ინახება მხოლოდ ამ ბრაუზერის სესიაში.</p>
+        <label>
+          Token
+          <input type="password" id="session-token-input" placeholder="ghp_...">
+        </label>
+        <button type="button" class="btn btn-primary" id="save-token-btn">ტოკენის შენახვა</button>
+      </div>
+
       <div class="card">
         <h2>ახალი ფოტოს დამატება</h2>
         <form id="upload-form">

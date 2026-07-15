@@ -2,6 +2,8 @@ window.CRAFTWOOD_CONFIG = {
   repo: 'aniutagiorgadze/craftwood',
   branch: 'main',
   adminPin: '1234',
-  // ატვირთვისთვის: Classic ტოკენი (repo) — ჩასვით ქვემოთ
   githubToken: '',
+  siteUrl: 'https://aniutagiorgadze.github.io/craftwood',
+  galleryJsonUrl:
+    'https://raw.githubusercontent.com/aniutagiorgadze/craftwood/main/data/gallery.json',
 };
