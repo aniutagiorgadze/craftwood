@@ -1,34 +1,29 @@
-const LOGIN_KEY = 'craftwood_admin_logged_in';
+const STORAGE_KEY = 'craftwood_admin_token';
+const REPO_KEY = 'craftwood_admin_repo';
 
 const loginSection = document.getElementById('login-section');
 const panelSection = document.getElementById('panel-section');
 const loginForm = document.getElementById('login-form');
 const uploadForm = document.getElementById('upload-form');
-const pinInput = document.getElementById('pin-input');
+const tokenInput = document.getElementById('token-input');
+const repoInput = document.getElementById('repo-input');
+const userName = document.getElementById('user-name');
 const logoutBtn = document.getElementById('logout-btn');
 const itemsList = document.getElementById('items-list');
 const statusEl = document.getElementById('status');
 const uploadBtn = document.getElementById('upload-btn');
 
-const config = window.CRAFTWOOD_CONFIG || { repo: '', branch: 'main', adminPin: '1234' };
+const config = window.CRAFTWOOD_CONFIG || { repo: '', branch: 'main' };
+repoInput.value = sessionStorage.getItem(REPO_KEY) || config.repo || '';
 
 let editingIndex = null;
-let cachedItems = [];
-
-function getAdminPin() {
-  return config.adminPin || '1234';
-}
-
-function isLoggedIn() {
-  return sessionStorage.getItem(LOGIN_KEY) === '1';
-}
 
 function getToken() {
-  return (window.CRAFTWOOD_ADMIN || {}).apiToken || '';
+  return sessionStorage.getItem(STORAGE_KEY);
 }
 
 function getRepo() {
-  return config.repo || '';
+  return sessionStorage.getItem(REPO_KEY) || config.repo;
 }
 
 function getBranch() {
@@ -37,18 +32,7 @@ function getBranch() {
 
 function setStatus(message, type = '') {
   statusEl.textContent = message;
-  statusEl.className = `status status-global ${type}`.trim();
-  if (message && type === 'error') {
-    statusEl.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-  }
-}
-
-function encodeRepoPath(path) {
-  return path.split('/').map(encodeURIComponent).join('/');
-}
-
-function encodeAssetPath(path) {
-  return path.split('/').map(encodeURIComponent).join('/');
+  statusEl.className = `status ${type}`.trim();
 }
 
 function escapeHtml(text) {
@@ -58,18 +42,8 @@ function escapeHtml(text) {
 }
 
 function assetUrl(relativePath) {
-  if (
-    (location.hostname === 'localhost' || location.hostname === '127.0.0.1') &&
-    config.siteUrl
-  ) {
-    return `${config.siteUrl.replace(/\/$/, '')}/${relativePath}`;
-  }
   const base = window.location.href.replace(/\/admin\/.*$/, '/');
   return new URL(relativePath, base).href;
-}
-
-function imagePreviewUrl(path) {
-  return `${assetUrl(encodeAssetPath(path))}?t=${Date.now()}`;
 }
 
 function encodeUtf8Base64(str) {
@@ -87,14 +61,7 @@ function decodeBase64Utf8(b64) {
   return new TextDecoder('utf-8').decode(bytes);
 }
 
-function requireToken() {
-  if (!getToken()) {
-    throw new Error('ადმინი ჯერ არ არის გამოქვეყნებული. დაელოდეთ deploy-ს.');
-  }
-}
-
 async function githubFetch(path, options = {}) {
-  requireToken();
   const token = getToken();
   const response = await fetch(`https://api.github.com${path}`, {
     ...options,
@@ -109,14 +76,10 @@ async function githubFetch(path, options = {}) {
   const data = await response.json().catch(() => ({}));
   if (!response.ok) {
     const msg = data.message || 'GitHub API შეცდომა';
-    if (response.status === 401) {
-      throw new Error('ადმინის კონფიგურაცია არასწორია.');
-    }
-    if (response.status === 403) {
-      throw new Error('წერის უფლება არ გაქვთ.');
-    }
-    if (response.status === 404) {
-      throw new Error(`ფაილი ვერ მოიძებნა: ${msg}`);
+    if (msg.includes('Resource not accessible')) {
+      throw new Error(
+        'ტოკენს არ აქვს საჭირო უფლება. შექმენით Classic ტოკენი (repo) აქ: github.com/settings/tokens/new'
+      );
     }
     throw new Error(msg);
   }
@@ -136,29 +99,13 @@ function slugify() {
   return `photo-${Date.now()}`;
 }
 
-function isUploadedImage(path) {
-  return path && path.startsWith('images/uploads/');
-}
-
 async function getFileContent(path) {
   const [owner, repo] = getRepo().split('/');
   const data = await githubFetch(
-    `/repos/${owner}/${repo}/contents/${encodeRepoPath(path)}?ref=${getBranch()}`
+    `/repos/${owner}/${repo}/contents/${path}?ref=${getBranch()}`
   );
   const content = JSON.parse(decodeBase64Utf8(data.content));
   return { content, sha: data.sha };
-}
-
-async function getRepoFileSha(path) {
-  try {
-    const [owner, repo] = getRepo().split('/');
-    const data = await githubFetch(
-      `/repos/${owner}/${repo}/contents/${encodeRepoPath(path)}?ref=${getBranch()}`
-    );
-    return data.sha;
-  } catch {
-    return null;
-  }
 }
 
 async function putFile(path, content, message, sha) {
@@ -170,7 +117,7 @@ async function putFile(path, content, message, sha) {
   };
   if (sha) body.sha = sha;
 
-  return githubFetch(`/repos/${owner}/${repo}/contents/${encodeRepoPath(path)}`, {
+  return githubFetch(`/repos/${owner}/${repo}/contents/${path}`, {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body),
@@ -179,7 +126,7 @@ async function putFile(path, content, message, sha) {
 
 async function putBinaryFile(path, base64Content, message) {
   const [owner, repo] = getRepo().split('/');
-  return githubFetch(`/repos/${owner}/${repo}/contents/${encodeRepoPath(path)}`, {
+  return githubFetch(`/repos/${owner}/${repo}/contents/${path}`, {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
@@ -187,18 +134,6 @@ async function putBinaryFile(path, base64Content, message) {
       content: base64Content,
       branch: getBranch(),
     }),
-  });
-}
-
-async function deleteRepoFile(path, message) {
-  const sha = await getRepoFileSha(path);
-  if (!sha) return;
-
-  const [owner, repo] = getRepo().split('/');
-  await githubFetch(`/repos/${owner}/${repo}/contents/${encodeRepoPath(path)}`, {
-    method: 'DELETE',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ message, sha, branch: getBranch() }),
   });
 }
 
@@ -212,19 +147,9 @@ async function saveGallery(content, message) {
   );
 }
 
-async function loadGalleryPublic() {
-  const url = config.galleryJsonUrl || assetUrl('data/gallery.json');
-  const response = await fetch(`${url}?t=${Date.now()}`, { cache: 'no-store' });
-  if (!response.ok) throw new Error('გალერეის ჩატვირთვა ვერ მოხერხდა');
-  return response.json();
-}
-
 async function loadGalleryData() {
-  if (getToken()) {
-    const { content } = await getFileContent('data/gallery.json');
-    return content;
-  }
-  return loadGalleryPublic();
+  const { content } = await getFileContent('data/gallery.json');
+  return content;
 }
 
 function renderItems(items) {
@@ -236,19 +161,18 @@ function renderItems(items) {
   itemsList.innerHTML = items
     .map((item, index) => {
       const isEditing = editingIndex === index;
-      const imgSrc = imagePreviewUrl(item.src);
+      const imgSrc = assetUrl(item.src);
 
       if (isEditing) {
         return `
           <div class="item-row item-row--editing" data-index="${index}">
-            <img src="${imgSrc}" alt="" class="edit-preview">
+            <img src="${imgSrc}" alt="">
             <div class="item-edit-fields">
               <label>სათაური<input type="text" class="edit-title" value="${escapeHtml(item.title)}"></label>
               <label>კატეგორია<input type="text" class="edit-category" value="${escapeHtml(item.category)}"></label>
-              <label>ახალი სურათი (არასავალდებულო)<input type="file" class="edit-image" accept="image/*"></label>
               <div class="item-actions">
-                <button type="button" class="btn btn-primary save-btn" data-index="${index}">შენახვა</button>
-                <button type="button" class="btn btn-ghost cancel-btn" data-index="${index}">გაუქმება</button>
+                <button class="btn btn-primary save-btn" data-index="${index}">შენახვა</button>
+                <button class="btn btn-ghost cancel-btn" data-index="${index}">გაუქმება</button>
               </div>
             </div>
           </div>
@@ -264,8 +188,8 @@ function renderItems(items) {
             <p class="item-path">${escapeHtml(item.src)}</p>
           </div>
           <div class="item-actions">
-            <button type="button" class="btn btn-ghost edit-btn" data-index="${index}">რედაქტირება</button>
-            <button type="button" class="btn btn-danger delete-btn" data-index="${index}">წაშლა</button>
+            <button class="btn btn-ghost edit-btn" data-index="${index}">რედაქტირება</button>
+            <button class="btn btn-danger delete-btn" data-index="${index}">წაშლა</button>
           </div>
         </div>
       `;
@@ -295,6 +219,8 @@ function renderItems(items) {
   });
 }
 
+let cachedItems = [];
+
 function renderItemsFromCache() {
   renderItems(cachedItems);
 }
@@ -303,9 +229,7 @@ async function refreshItems() {
   try {
     const data = await loadGalleryData();
     cachedItems = data.items || [];
-    if (editingIndex !== null && editingIndex >= cachedItems.length) {
-      editingIndex = null;
-    }
+    editingIndex = null;
     renderItems(cachedItems);
   } catch (err) {
     itemsList.innerHTML = `<p class="empty-list">${escapeHtml(err.message)}</p>`;
@@ -313,6 +237,8 @@ async function refreshItems() {
 }
 
 async function showPanel() {
+  const user = await githubFetch('/user');
+  userName.textContent = user.login;
   loginSection.classList.add('hidden');
   panelSection.classList.remove('hidden');
   await refreshItems();
@@ -320,21 +246,29 @@ async function showPanel() {
 
 loginForm.addEventListener('submit', async (e) => {
   e.preventDefault();
-  const pin = pinInput.value.trim();
+  const token = tokenInput.value.trim();
+  const repo = repoInput.value.trim();
 
-  if (pin !== getAdminPin()) {
-    setStatus('არასწორი PIN კოდი.', 'error');
+  if (!repo.includes('/')) {
+    setStatus('რეპოზიტორია უნდა იყოს ფორმატით: username/craftwood', 'error');
     return;
   }
 
-  sessionStorage.setItem(LOGIN_KEY, '1');
-  pinInput.value = '';
-  setStatus('');
-  await showPanel();
+  sessionStorage.setItem(STORAGE_KEY, token);
+  sessionStorage.setItem(REPO_KEY, repo);
+
+  try {
+    await showPanel();
+    setStatus('');
+    tokenInput.value = '';
+  } catch (err) {
+    sessionStorage.removeItem(STORAGE_KEY);
+    setStatus(err.message, 'error');
+  }
 });
 
 logoutBtn.addEventListener('click', () => {
-  sessionStorage.removeItem(LOGIN_KEY);
+  sessionStorage.removeItem(STORAGE_KEY);
   panelSection.classList.add('hidden');
   loginSection.classList.remove('hidden');
   setStatus('');
@@ -352,9 +286,9 @@ uploadForm.addEventListener('submit', async (e) => {
   setStatus('იტვირთება...', '');
 
   try {
-    requireToken();
     const ext = file.name.split('.').pop().toLowerCase();
-    const imagePath = `images/uploads/${slugify()}.${ext}`;
+    const filename = `${slugify()}.${ext}`;
+    const imagePath = `images/uploads/${filename}`;
     const base64 = await fileToBase64(file);
 
     await putBinaryFile(imagePath, base64, `Add image: ${title}`);
@@ -364,9 +298,8 @@ uploadForm.addEventListener('submit', async (e) => {
     await saveGallery(content, `Add gallery item: ${title}`);
 
     uploadForm.reset();
-    editingIndex = null;
     await refreshItems();
-    setStatus('ფოტო აიტვირთა! განაახლეთ მთავარი საიტი.', 'success');
+    setStatus('ფოტო წარმატებით აიტვირთა! საიტი განახლდება 1-2 წუთში.', 'success');
   } catch (err) {
     setStatus(err.message, 'error');
   } finally {
@@ -376,11 +309,8 @@ uploadForm.addEventListener('submit', async (e) => {
 
 async function saveItem(index) {
   const row = itemsList.querySelector(`.item-row[data-index="${index}"]`);
-  if (!row) return;
-
   const title = row.querySelector('.edit-title').value.trim();
   const category = row.querySelector('.edit-category').value.trim();
-  const newFile = row.querySelector('.edit-image')?.files[0];
 
   if (!title || !category) {
     setStatus('სათაური და კატეგორია სავალდებულოა.', 'error');
@@ -390,29 +320,12 @@ async function saveItem(index) {
   setStatus('ინახება...', '');
 
   try {
-    requireToken();
     const { content } = await getFileContent('data/gallery.json');
-    const item = { ...content.items[index], title, category };
-
-    if (newFile) {
-      const ext = newFile.name.split('.').pop().toLowerCase();
-      const newPath = `images/uploads/${slugify()}.${ext}`;
-      const base64 = await fileToBase64(newFile);
-      await putBinaryFile(newPath, base64, `Replace image: ${title}`);
-
-      const oldPath = content.items[index].src;
-      if (isUploadedImage(oldPath)) {
-        await deleteRepoFile(oldPath, `Delete old image: ${title}`);
-      }
-
-      item.src = newPath;
-    }
-
-    content.items[index] = item;
+    content.items[index] = { ...content.items[index], title, category };
     await saveGallery(content, `Update gallery item: ${title}`);
     editingIndex = null;
     await refreshItems();
-    setStatus('შენახულია! განაახლეთ მთავარი საიტი.', 'success');
+    setStatus('შენახულია.', 'success');
   } catch (err) {
     setStatus(err.message, 'error');
   }
@@ -420,30 +333,24 @@ async function saveItem(index) {
 
 async function deleteItem(index) {
   const item = cachedItems[index];
-  if (!item) return;
-
   if (!confirm(`ნამდვილად გსურთ წაშლა?\n${item.title}`)) return;
 
   setStatus('იშლება...', '');
 
   try {
-    requireToken();
     const { content } = await getFileContent('data/gallery.json');
     const [removed] = content.items.splice(index, 1);
     await saveGallery(content, `Remove gallery item: ${removed.title}`);
-
-    if (isUploadedImage(removed.src)) {
-      await deleteRepoFile(removed.src, `Delete image file: ${removed.title}`);
-    }
-
     editingIndex = null;
     await refreshItems();
-    setStatus('წაიშალა! განაახლეთ მთავარი საიტი.', 'success');
+    setStatus('წაიშალა.', 'success');
   } catch (err) {
     setStatus(err.message, 'error');
   }
 }
 
-if (isLoggedIn()) {
-  showPanel();
+if (getToken()) {
+  showPanel().catch(() => {
+    sessionStorage.removeItem(STORAGE_KEY);
+  });
 }

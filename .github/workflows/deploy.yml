@@ -23,18 +23,6 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Inject admin API token
-        env:
-          ADMIN_GITHUB_TOKEN: ${{ secrets.ADMIN_GITHUB_TOKEN }}
-        run: |
-          node <<'EOF'
-          const fs = require('fs');
-          const token = process.env.ADMIN_GITHUB_TOKEN || '';
-          const safe = token.replace(/\\/g, '\\\\').replace(/'/g, "\\'");
-          const content = `window.CRAFTWOOD_ADMIN = {\n  apiToken: '${safe}',\n};\n`;
-          fs.writeFileSync('js/admin-secret.js', content);
-          EOF
-
       - name: Setup Pages
         uses: actions/configure-pages@v5
         with:

@@ -18,23 +18,30 @@
 
     <section id="login-section" class="card">
       <h2>შესვლა</h2>
-      <p class="hint">შეიყვანეთ PIN კოდი: <strong>1234</strong></p>
+      <p class="hint">შეიყვანეთ GitHub Personal Access Token რეპოზიტორიის რედაქტირების უფლებით.</p>
       <form id="login-form">
         <label>
-          PIN კოდი
-          <input type="password" id="pin-input" required placeholder="1234" maxlength="20" inputmode="numeric">
+          GitHub Token
+          <input type="password" id="token-input" required placeholder="ghp_...">
+        </label>
+        <label>
+          რეპოზიტორია
+          <input type="text" id="repo-input" required placeholder="username/craftwood">
         </label>
         <button type="submit" class="btn btn-primary">შესვლა</button>
       </form>
+      <p class="help">
+        <strong>ტოკენის შექმნა (Classic):</strong>
+        <a href="https://github.com/settings/tokens/new" target="_blank" rel="noopener">github.com/settings/tokens/new</a>
+        — მონიშნეთ მხოლოდ <strong>repo</strong> (მთელი ყუთი). Fine-grained ტოკენი ხშირად არ მუშაობს.
+      </p>
     </section>
 
     <section id="panel-section" class="hidden">
       <div class="panel-top">
-        <p>შესული ხართ როგორც <strong id="user-name">ადმინი</strong></p>
+        <p>შესული ხართ როგორც <strong id="user-name"></strong></p>
         <button id="logout-btn" class="btn btn-ghost">გასვლა</button>
       </div>
-
-      <p id="status" class="status status-global" aria-live="polite"></p>
 
       <div class="card">
         <h2>ახალი ფოტოს დამატება</h2>
@@ -53,6 +60,7 @@
           </label>
           <button type="submit" class="btn btn-primary" id="upload-btn">ატვირთვა</button>
         </form>
+        <p id="status" class="status" aria-live="polite"></p>
       </div>
 
       <div class="card">
@@ -63,7 +71,6 @@
   </div>
 
   <script src="../js/config.js"></script>
-  <script src="../js/admin-secret.js" onerror="void 0"></script>
   <script src="admin.js"></script>
 </body>
 </html>

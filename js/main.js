@@ -1,5 +1,3 @@
-const config = window.CRAFTWOOD_CONFIG || { repo: '', branch: 'main', adminPin: '1234' };
-
 const galleryGrid = document.getElementById('gallery-grid');
 const lightbox = document.getElementById('lightbox');
 const lightboxImg = lightbox.querySelector('.lightbox-img');
@@ -9,27 +7,6 @@ const navLinks = document.querySelector('.nav-links');
 
 let galleryItems = [];
 let currentIndex = 0;
-
-function escapeHtml(text) {
-  const div = document.createElement('div');
-  div.textContent = text;
-  return div.innerHTML;
-}
-
-function isLocalDev() {
-  return location.hostname === 'localhost' || location.hostname === '127.0.0.1';
-}
-
-function resolveAssetPath(path) {
-  if (isLocalDev() && config.siteUrl) {
-    return `${config.siteUrl.replace(/\/$/, '')}/${path}`;
-  }
-  return path;
-}
-
-function imageSrc(path) {
-  return `${encodeURI(resolveAssetPath(path))}?t=${Date.now()}`;
-}
 
 function renderGallery() {
   if (!galleryItems.length) {
@@ -41,10 +18,10 @@ function renderGallery() {
     .map(
       (item, index) => `
       <article class="gallery-item" data-index="${index}">
-        <img src="${imageSrc(item.src)}" alt="${escapeHtml(item.title)}" loading="lazy">
+        <img src="${encodeURI(item.src)}" alt="${item.title}" loading="lazy">
         <div class="gallery-item-info">
-          <h3>${escapeHtml(item.title)}</h3>
-          <p>${escapeHtml(item.category)}</p>
+          <h3>${item.title}</h3>
+          <p>${item.category}</p>
         </div>
       </article>
     `
@@ -59,7 +36,7 @@ function renderGallery() {
 function openLightbox(index) {
   currentIndex = index;
   const item = galleryItems[index];
-  lightboxImg.src = imageSrc(item.src);
+  lightboxImg.src = encodeURI(item.src);
   lightboxImg.alt = item.title;
   lightboxCaption.textContent = item.title;
   lightbox.classList.add('active');
@@ -84,11 +61,10 @@ function showNext() {
 }
 
 async function loadGallery() {
-  const galleryUrl =
-    config.galleryJsonUrl || `${window.location.origin}${window.location.pathname.replace(/\/[^/]*$/, '/')}/data/gallery.json`;
-
   try {
-    const response = await fetch(`${galleryUrl}?t=${Date.now()}`, { cache: 'no-store' });
+    const response = await fetch(`data/gallery.json?t=${Date.now()}`, {
+      cache: 'no-store',
+    });
     if (!response.ok) throw new Error('Failed to load gallery');
     const data = await response.json();
     galleryItems = data.items || [];
@@ -123,10 +99,6 @@ navLinks.querySelectorAll('a').forEach((link) => {
     navLinks.classList.remove('open');
     menuToggle.setAttribute('aria-expanded', 'false');
   });
-});
-
-document.addEventListener('visibilitychange', () => {
-  if (!document.hidden) loadGallery();
 });
 
 loadGallery();
