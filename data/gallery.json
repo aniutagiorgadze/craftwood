@@ -1,9 +1,14 @@
 {
   "items": [
     {
-      "src": "images/placeholder-2.svg",
-      "title": "სკამი — ხელნაკეთი",
-      "category": "სკამები"
+      "src": "images/placeholder-1.svg",
+      "title": "მაგიდა — ნატურალური ხე",
+      "category": "მაგიდები"
+    },
+    {
+      "src": "images/uploads/photo-1784146894597.jpg",
+      "title": "კარადა — ani",
+      "category": "irakli"
     },
     {
       "src": "images/placeholder-3.svg",
