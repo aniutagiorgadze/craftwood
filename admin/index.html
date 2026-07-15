@@ -34,17 +34,6 @@
         <button id="logout-btn" class="btn btn-ghost">გასვლა</button>
       </div>
 
-      <div id="token-setup" class="card token-setup--required hidden">
-        <h2>⚠️ GitHub ტოკენი (ერთხელ)</h2>
-        <p class="hint">PIN-ით შესვლა საკმარისია, მაგრამ წაშლა/რედაქტირებისთვის Classic ტოკენი სჭირდება <strong>ერთხელ</strong> ამ ბრაუზერში.</p>
-        <p class="hint"><a href="https://github.com/settings/tokens/new?scopes=repo&amp;description=craftwood-admin" target="_blank" rel="noopener">ტოკენის შექმნა</a> → მონიშნეთ <strong>repo</strong></p>
-        <label>
-          Token
-          <input type="password" id="session-token-input" placeholder="ghp_...">
-        </label>
-        <button type="button" class="btn btn-primary" id="save-token-btn">შენახვა</button>
-      </div>
-
       <p id="status" class="status status-global" aria-live="polite"></p>
 
       <div class="card">
@@ -74,7 +63,7 @@
   </div>
 
   <script src="../js/config.js"></script>
-  <script src="../js/config.local.js" onerror="void 0"></script>
+  <script src="../js/admin-secret.js" onerror="void 0"></script>
   <script src="admin.js"></script>
 </body>
 </html>

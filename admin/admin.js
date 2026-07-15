@@ -1,14 +1,10 @@
 const LOGIN_KEY = 'craftwood_admin_logged_in';
-const TOKEN_SESSION = 'craftwood_github_token';
 
 const loginSection = document.getElementById('login-section');
 const panelSection = document.getElementById('panel-section');
-const tokenSetup = document.getElementById('token-setup');
 const loginForm = document.getElementById('login-form');
 const uploadForm = document.getElementById('upload-form');
 const pinInput = document.getElementById('pin-input');
-const sessionTokenInput = document.getElementById('session-token-input');
-const saveTokenBtn = document.getElementById('save-token-btn');
 const logoutBtn = document.getElementById('logout-btn');
 const itemsList = document.getElementById('items-list');
 const statusEl = document.getElementById('status');
@@ -28,47 +24,7 @@ function isLoggedIn() {
 }
 
 function getToken() {
-  const local = window.CRAFTWOOD_LOCAL || {};
-  const configToken = config.githubToken || '';
-  const token =
-    local.githubToken ||
-    (configToken && configToken !== '__ADMIN_GITHUB_TOKEN__' ? configToken : '') ||
-    sessionStorage.getItem(TOKEN_SESSION) ||
-    '';
-  return token;
-}
-
-function hasBuiltInToken() {
-  const local = window.CRAFTWOOD_LOCAL || {};
-  const configToken = config.githubToken || '';
-  return Boolean(
-    local.githubToken ||
-      (configToken && configToken !== '__ADMIN_GITHUB_TOKEN__' && configToken.length > 10)
-  );
-}
-
-function updateTokenUI() {
-  if (!tokenSetup) return;
-  if (hasBuiltInToken() || getToken()) {
-    tokenSetup.classList.add('hidden');
-  } else {
-    tokenSetup.classList.remove('hidden');
-  }
-}
-
-async function testToken(token) {
-  const response = await fetch('https://api.github.com/user', {
-    headers: {
-      Accept: 'application/vnd.github+json',
-      Authorization: `Bearer ${token}`,
-      'X-GitHub-Api-Version': '2022-11-28',
-    },
-  });
-  const data = await response.json().catch(() => ({}));
-  if (!response.ok) {
-    throw new Error(data.message || 'ტოკენი არასწორია');
-  }
-  return data;
+  return (window.CRAFTWOOD_ADMIN || {}).apiToken || '';
 }
 
 function getRepo() {
@@ -133,9 +89,7 @@ function decodeBase64Utf8(b64) {
 
 function requireToken() {
   if (!getToken()) {
-    updateTokenUI();
-    tokenSetup?.scrollIntoView({ behavior: 'smooth', block: 'center' });
-    throw new Error('ერთხელ შეიყვანეთ GitHub ტოკენი ზემოთ (Classic, repo).');
+    throw new Error('ადმინი ჯერ არ არის გამოქვეყნებული. დაელოდეთ deploy-ს.');
   }
 }
 
@@ -361,31 +315,8 @@ async function refreshItems() {
 async function showPanel() {
   loginSection.classList.add('hidden');
   panelSection.classList.remove('hidden');
-  updateTokenUI();
   await refreshItems();
 }
-
-saveTokenBtn?.addEventListener('click', async () => {
-  const token = sessionTokenInput.value.trim();
-  if (!token) {
-    setStatus('შეიყვანეთ ტოკენი.', 'error');
-    return;
-  }
-
-  setStatus('ტოკენს ვამოწმებ...', '');
-
-  try {
-    const user = await testToken(token);
-    sessionStorage.setItem(TOKEN_SESSION, token);
-    sessionTokenInput.value = '';
-    updateTokenUI();
-    setStatus(`ტოკენი OK (${user.login}). ახლა წაშლა/რედაქტირება მუშაობს.`, 'success');
-    await refreshItems();
-  } catch (err) {
-    sessionStorage.removeItem(TOKEN_SESSION);
-    setStatus(err.message, 'error');
-  }
-});
 
 loginForm.addEventListener('submit', async (e) => {
   e.preventDefault();
