@@ -42,8 +42,30 @@ function escapeHtml(text) {
 }
 
 function assetUrl(relativePath) {
+  if (
+    (location.hostname === 'localhost' || location.hostname === '127.0.0.1') &&
+    config.siteUrl
+  ) {
+    return `${config.siteUrl.replace(/\/$/, '')}/${relativePath}`;
+  }
   const base = window.location.href.replace(/\/admin\/.*$/, '/');
   return new URL(relativePath, base).href;
+}
+
+function encodeRepoPath(path) {
+  return path.split('/').map(encodeURIComponent).join('/');
+}
+
+function encodeAssetPath(path) {
+  return path.split('/').map(encodeURIComponent).join('/');
+}
+
+function imagePreviewUrl(path) {
+  return `${assetUrl(encodeAssetPath(path))}?t=${Date.now()}`;
+}
+
+function isUploadedImage(path) {
+  return path && path.startsWith('images/uploads/');
 }
 
 function encodeUtf8Base64(str) {
@@ -102,10 +124,22 @@ function slugify() {
 async function getFileContent(path) {
   const [owner, repo] = getRepo().split('/');
   const data = await githubFetch(
-    `/repos/${owner}/${repo}/contents/${path}?ref=${getBranch()}`
+    `/repos/${owner}/${repo}/contents/${encodeRepoPath(path)}?ref=${getBranch()}`
   );
   const content = JSON.parse(decodeBase64Utf8(data.content));
   return { content, sha: data.sha };
+}
+
+async function getRepoFileSha(path) {
+  try {
+    const [owner, repo] = getRepo().split('/');
+    const data = await githubFetch(
+      `/repos/${owner}/${repo}/contents/${encodeRepoPath(path)}?ref=${getBranch()}`
+    );
+    return data.sha;
+  } catch {
+    return null;
+  }
 }
 
 async function putFile(path, content, message, sha) {
@@ -117,7 +151,7 @@ async function putFile(path, content, message, sha) {
   };
   if (sha) body.sha = sha;
 
-  return githubFetch(`/repos/${owner}/${repo}/contents/${path}`, {
+  return githubFetch(`/repos/${owner}/${repo}/contents/${encodeRepoPath(path)}`, {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body),
@@ -126,7 +160,7 @@ async function putFile(path, content, message, sha) {
 
 async function putBinaryFile(path, base64Content, message) {
   const [owner, repo] = getRepo().split('/');
-  return githubFetch(`/repos/${owner}/${repo}/contents/${path}`, {
+  return githubFetch(`/repos/${owner}/${repo}/contents/${encodeRepoPath(path)}`, {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
@@ -134,6 +168,18 @@ async function putBinaryFile(path, base64Content, message) {
       content: base64Content,
       branch: getBranch(),
     }),
+  });
+}
+
+async function deleteRepoFile(path, message) {
+  const sha = await getRepoFileSha(path);
+  if (!sha) return;
+
+  const [owner, repo] = getRepo().split('/');
+  await githubFetch(`/repos/${owner}/${repo}/contents/${encodeRepoPath(path)}`, {
+    method: 'DELETE',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ message, sha, branch: getBranch() }),
   });
 }
 
@@ -161,18 +207,19 @@ function renderItems(items) {
   itemsList.innerHTML = items
     .map((item, index) => {
       const isEditing = editingIndex === index;
-      const imgSrc = assetUrl(item.src);
+      const imgSrc = imagePreviewUrl(item.src);
 
       if (isEditing) {
         return `
           <div class="item-row item-row--editing" data-index="${index}">
-            <img src="${imgSrc}" alt="">
+            <img src="${imgSrc}" alt="" class="edit-preview">
             <div class="item-edit-fields">
               <label>სათაური<input type="text" class="edit-title" value="${escapeHtml(item.title)}"></label>
               <label>კატეგორია<input type="text" class="edit-category" value="${escapeHtml(item.category)}"></label>
+              <label>ახალი სურათი (არასავალდებულო)<input type="file" class="edit-image" accept="image/*"></label>
               <div class="item-actions">
-                <button class="btn btn-primary save-btn" data-index="${index}">შენახვა</button>
-                <button class="btn btn-ghost cancel-btn" data-index="${index}">გაუქმება</button>
+                <button type="button" class="btn btn-primary save-btn" data-index="${index}">შენახვა</button>
+                <button type="button" class="btn btn-ghost cancel-btn" data-index="${index}">გაუქმება</button>
               </div>
             </div>
           </div>
@@ -188,8 +235,8 @@ function renderItems(items) {
             <p class="item-path">${escapeHtml(item.src)}</p>
           </div>
           <div class="item-actions">
-            <button class="btn btn-ghost edit-btn" data-index="${index}">რედაქტირება</button>
-            <button class="btn btn-danger delete-btn" data-index="${index}">წაშლა</button>
+            <button type="button" class="btn btn-ghost edit-btn" data-index="${index}">რედაქტირება</button>
+            <button type="button" class="btn btn-danger delete-btn" data-index="${index}">წაშლა</button>
           </div>
         </div>
       `;
@@ -229,7 +276,9 @@ async function refreshItems() {
   try {
     const data = await loadGalleryData();
     cachedItems = data.items || [];
-    editingIndex = null;
+    if (editingIndex !== null && editingIndex >= cachedItems.length) {
+      editingIndex = null;
+    }
     renderItems(cachedItems);
   } catch (err) {
     itemsList.innerHTML = `<p class="empty-list">${escapeHtml(err.message)}</p>`;
@@ -298,6 +347,7 @@ uploadForm.addEventListener('submit', async (e) => {
     await saveGallery(content, `Add gallery item: ${title}`);
 
     uploadForm.reset();
+    editingIndex = null;
     await refreshItems();
     setStatus('ფოტო წარმატებით აიტვირთა! საიტი განახლდება 1-2 წუთში.', 'success');
   } catch (err) {
@@ -309,8 +359,11 @@ uploadForm.addEventListener('submit', async (e) => {
 
 async function saveItem(index) {
   const row = itemsList.querySelector(`.item-row[data-index="${index}"]`);
+  if (!row) return;
+
   const title = row.querySelector('.edit-title').value.trim();
   const category = row.querySelector('.edit-category').value.trim();
+  const newFile = row.querySelector('.edit-image')?.files[0];
 
   if (!title || !category) {
     setStatus('სათაური და კატეგორია სავალდებულოა.', 'error');
@@ -321,11 +374,29 @@ async function saveItem(index) {
 
   try {
     const { content } = await getFileContent('data/gallery.json');
-    content.items[index] = { ...content.items[index], title, category };
+    const item = { ...content.items[index], title, category };
+
+    if (newFile) {
+      const ext = newFile.name.split('.').pop().toLowerCase();
+      const newPath = `images/uploads/${slugify()}.${ext}`;
+      const base64 = await fileToBase64(newFile);
+      await putBinaryFile(newPath, base64, `Replace image: ${title}`);
+
+      const oldPath = content.items[index].src;
+      if (isUploadedImage(oldPath)) {
+        await deleteRepoFile(oldPath, `Delete old image: ${title}`);
+      }
+
+      item.src = newPath;
+    }
+
+    content.items[index] = item;
     await saveGallery(content, `Update gallery item: ${title}`);
+
+    cachedItems = content.items;
     editingIndex = null;
-    await refreshItems();
-    setStatus('შენახულია.', 'success');
+    renderItems(cachedItems);
+    setStatus('შენახულია! საიტი განახლდება 1-2 წუთში.', 'success');
   } catch (err) {
     setStatus(err.message, 'error');
   }
@@ -333,18 +404,31 @@ async function saveItem(index) {
 
 async function deleteItem(index) {
   const item = cachedItems[index];
+  if (!item) return;
   if (!confirm(`ნამდვილად გსურთ წაშლა?\n${item.title}`)) return;
 
+  const backup = [...cachedItems];
+  cachedItems.splice(index, 1);
+  if (editingIndex === index) editingIndex = null;
+  else if (editingIndex !== null && editingIndex > index) editingIndex -= 1;
+  renderItems(cachedItems);
   setStatus('იშლება...', '');
 
   try {
     const { content } = await getFileContent('data/gallery.json');
     const [removed] = content.items.splice(index, 1);
     await saveGallery(content, `Remove gallery item: ${removed.title}`);
-    editingIndex = null;
-    await refreshItems();
-    setStatus('წაიშალა.', 'success');
+
+    if (isUploadedImage(removed.src)) {
+      await deleteRepoFile(removed.src, `Delete image file: ${removed.title}`);
+    }
+
+    cachedItems = content.items;
+    renderItems(cachedItems);
+    setStatus('წაიშალა!', 'success');
   } catch (err) {
+    cachedItems = backup;
+    renderItems(cachedItems);
     setStatus(err.message, 'error');
   }
 }

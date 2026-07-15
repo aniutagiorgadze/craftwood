@@ -200,6 +200,11 @@ input:focus {
   background: var(--color-bg);
 }
 
+.item-row img.edit-preview {
+  width: 120px;
+  height: 90px;
+}
+
 .item-row img.img-error {
   outline: 2px dashed var(--color-danger);
 }
