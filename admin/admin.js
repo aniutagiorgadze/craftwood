@@ -12,11 +12,33 @@ const logoutBtn = document.getElementById('logout-btn');
 const itemsList = document.getElementById('items-list');
 const statusEl = document.getElementById('status');
 const uploadBtn = document.getElementById('upload-btn');
+const confirmDialog = document.getElementById('confirm-dialog');
+const confirmMessage = document.getElementById('confirm-message');
+const confirmOkBtn = document.getElementById('confirm-ok');
+const confirmCancelBtn = document.getElementById('confirm-cancel');
 
 const config = window.CRAFTWOOD_CONFIG || { repo: '', branch: 'main' };
 repoInput.value = sessionStorage.getItem(REPO_KEY) || config.repo || '';
 
 let editingIndex = null;
+let galleryQueue = Promise.resolve();
+
+function enqueueGallery(task) {
+  const next = galleryQueue.then(task, task);
+  galleryQueue = next.catch(() => {});
+  return next;
+}
+
+function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function isGalleryConflict(err) {
+  return (
+    err?.status === 409 ||
+    (err?.message && err.message.includes('does not match'))
+  );
+}
 
 function getToken() {
   return sessionStorage.getItem(STORAGE_KEY);
@@ -32,7 +54,32 @@ function getBranch() {
 
 function setStatus(message, type = '') {
   statusEl.textContent = message;
-  statusEl.className = `status ${type}`.trim();
+  statusEl.className = `status status-global ${type}`.trim();
+  if (message && type === 'success') {
+    statusEl.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  }
+}
+
+function confirmDelete(item) {
+  return new Promise((resolve) => {
+    confirmMessage.textContent = `«${item.title}» — ეს ნამუშევარი სრულად წაიშლება.`;
+    confirmDialog.classList.remove('hidden');
+    confirmDialog.setAttribute('aria-hidden', 'false');
+
+    const cleanup = (result) => {
+      confirmDialog.classList.add('hidden');
+      confirmDialog.setAttribute('aria-hidden', 'true');
+      confirmOkBtn.removeEventListener('click', onOk);
+      confirmCancelBtn.removeEventListener('click', onCancel);
+      resolve(result);
+    };
+
+    const onOk = () => cleanup(true);
+    const onCancel = () => cleanup(false);
+
+    confirmOkBtn.addEventListener('click', onOk);
+    confirmCancelBtn.addEventListener('click', onCancel);
+  });
 }
 
 function escapeHtml(text) {
@@ -103,7 +150,9 @@ async function githubFetch(path, options = {}) {
         'ტოკენს არ აქვს საჭირო უფლება. შექმენით Classic ტოკენი (repo) აქ: github.com/settings/tokens/new'
       );
     }
-    throw new Error(msg);
+    const err = new Error(msg);
+    err.status = response.status;
+    throw err;
   }
   return data;
 }
@@ -192,8 +241,8 @@ async function saveGallery(content, message, fileSha) {
   );
 }
 
-async function updateGallery(mutator, message) {
-  for (let attempt = 0; attempt < 3; attempt++) {
+async function commitGalleryUpdate(mutator, message) {
+  for (let attempt = 0; attempt < 5; attempt++) {
     const { content, sha } = await getFileContent('data/gallery.json');
     const result = mutator(content);
     if (result === false) {
@@ -203,11 +252,15 @@ async function updateGallery(mutator, message) {
       await saveGallery(content, message, sha);
       return content;
     } catch (err) {
-      const stale = err.message.includes('does not match') || err.message.includes('409');
-      if (!stale || attempt === 2) throw err;
+      if (!isGalleryConflict(err) || attempt === 4) throw err;
+      await sleep(350 * (attempt + 1));
     }
   }
   throw new Error('gallery.json განახლება ვერ მოხერხდა. სცადეთ თავიდან.');
+}
+
+async function updateGallery(mutator, message) {
+  return enqueueGallery(() => commitGalleryUpdate(mutator, message));
 }
 
 async function loadGalleryData() {
@@ -352,17 +405,19 @@ uploadForm.addEventListener('submit', async (e) => {
   setStatus('იტვირთება...', '');
 
   try {
-    const ext = file.name.split('.').pop().toLowerCase();
-    const filename = `${slugify()}.${ext}`;
-    const imagePath = `images/uploads/${filename}`;
-    const base64 = await fileToBase64(file);
+    const content = await enqueueGallery(async () => {
+      const ext = file.name.split('.').pop().toLowerCase();
+      const filename = `${slugify()}.${ext}`;
+      const imagePath = `images/uploads/${filename}`;
+      const base64 = await fileToBase64(file);
 
-    await putBinaryFile(imagePath, base64, `Add image: ${title}`);
+      await putBinaryFile(imagePath, base64, `Add image: ${title}`);
 
-    const content = await updateGallery((gallery) => {
-      gallery.items.push({ src: imagePath, title, category });
-      return true;
-    }, `Add gallery item: ${title}`);
+      return commitGalleryUpdate((gallery) => {
+        gallery.items.push({ src: imagePath, title, category });
+        return true;
+      }, `Add gallery item: ${title}`);
+    });
 
     cachedItems = content.items;
     uploadForm.reset();
@@ -394,49 +449,60 @@ async function saveItem(index) {
   const targetSrc = cachedItems[index]?.src;
   if (!targetSrc) return;
 
+  const saveBtn = row.querySelector('.save-btn');
+  if (saveBtn) saveBtn.disabled = true;
+
   try {
-    let newPath = null;
-    let oldPath = null;
+    const content = await enqueueGallery(async () => {
+      let newPath = null;
+      let oldPath = null;
 
-    if (newFile) {
-      const ext = newFile.name.split('.').pop().toLowerCase();
-      newPath = `images/uploads/${slugify()}.${ext}`;
-      const base64 = await fileToBase64(newFile);
-      await putBinaryFile(newPath, base64, `Replace image: ${title}`);
-      oldPath = targetSrc;
-    }
+      if (newFile) {
+        const ext = newFile.name.split('.').pop().toLowerCase();
+        newPath = `images/uploads/${slugify()}.${ext}`;
+        const base64 = await fileToBase64(newFile);
+        await putBinaryFile(newPath, base64, `Replace image: ${title}`);
+        oldPath = targetSrc;
+      }
 
-    const content = await updateGallery((gallery) => {
-      const remoteIndex = gallery.items.findIndex((i) => i.src === targetSrc);
-      if (remoteIndex === -1) return false;
+      const gallery = await commitGalleryUpdate((items) => {
+        const remoteIndex = items.items.findIndex((i) => i.src === targetSrc);
+        if (remoteIndex === -1) return false;
 
-      gallery.items[remoteIndex] = {
-        ...gallery.items[remoteIndex],
-        title,
-        category,
-        ...(newPath ? { src: newPath } : {}),
-      };
-      return true;
-    }, `Update gallery item: ${title}`);
+        items.items[remoteIndex] = {
+          ...items.items[remoteIndex],
+          title,
+          category,
+          ...(newPath ? { src: newPath } : {}),
+        };
+        return true;
+      }, `Update gallery item: ${title}`);
 
-    if (oldPath && isUploadedImage(oldPath)) {
-      await deleteRepoFile(oldPath, `Delete old image: ${title}`);
-    }
+      if (oldPath && isUploadedImage(oldPath)) {
+        await deleteRepoFile(oldPath, `Delete old image: ${title}`);
+      }
+
+      return gallery;
+    });
 
     cachedItems = content.items;
     editingIndex = null;
     renderItems(cachedItems);
-    setStatus('შენახულია! საიტი განახლდება 1-2 წუთში.', 'success');
+    setStatus('წარმატებით შეინახა ცვლილება', 'success');
   } catch (err) {
     await refreshItems();
     setStatus(err.message, 'error');
+  } finally {
+    if (saveBtn) saveBtn.disabled = false;
   }
 }
 
 async function deleteItem(index) {
   const item = cachedItems[index];
   if (!item) return;
-  if (!confirm(`ნამდვილად გსურთ წაშლა?\n${item.title}`)) return;
+
+  const confirmed = await confirmDelete(item);
+  if (!confirmed) return;
 
   const targetSrc = item.src;
   const backup = [...cachedItems];
@@ -448,18 +514,22 @@ async function deleteItem(index) {
   setStatus('იშლება...', '');
 
   try {
-    let removed = null;
+    const content = await enqueueGallery(async () => {
+      let removed = null;
 
-    const content = await updateGallery((gallery) => {
-      const remoteIndex = gallery.items.findIndex((i) => i.src === targetSrc);
-      if (remoteIndex === -1) return false;
-      [removed] = gallery.items.splice(remoteIndex, 1);
-      return true;
-    }, `Remove gallery item: ${item.title}`);
+      const gallery = await commitGalleryUpdate((items) => {
+        const remoteIndex = items.items.findIndex((i) => i.src === targetSrc);
+        if (remoteIndex === -1) return false;
+        [removed] = items.items.splice(remoteIndex, 1);
+        return true;
+      }, `Remove gallery item: ${item.title}`);
 
-    if (removed && isUploadedImage(removed.src)) {
-      await deleteRepoFile(removed.src, `Delete image file: ${removed.title}`);
-    }
+      if (removed && isUploadedImage(removed.src)) {
+        await deleteRepoFile(removed.src, `Delete image file: ${removed.title}`);
+      }
+
+      return gallery;
+    });
 
     cachedItems = content.items;
     renderItems(cachedItems);
