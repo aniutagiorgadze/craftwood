@@ -1,33 +1,44 @@
-const STORAGE_KEY = 'craftwood_admin_token';
-const REPO_KEY = 'craftwood_admin_repo';
+const LOGIN_KEY = 'craftwood_admin_logged_in';
 
 const loginSection = document.getElementById('login-section');
 const panelSection = document.getElementById('panel-section');
 const loginForm = document.getElementById('login-form');
 const uploadForm = document.getElementById('upload-form');
-const tokenInput = document.getElementById('token-input');
-const repoInput = document.getElementById('repo-input');
-const userName = document.getElementById('user-name');
+const pinInput = document.getElementById('pin-input');
 const logoutBtn = document.getElementById('logout-btn');
 const itemsList = document.getElementById('items-list');
 const statusEl = document.getElementById('status');
 const uploadBtn = document.getElementById('upload-btn');
 
-const config = window.CRAFTWOOD_CONFIG || { repo: '', branch: 'main' };
-repoInput.value = sessionStorage.getItem(REPO_KEY) || config.repo || '';
+const config = window.CRAFTWOOD_CONFIG || { repo: '', branch: 'main', adminPin: '1234' };
 
 let editingIndex = null;
+let cachedItems = [];
+
+function getAdminPin() {
+  return config.adminPin || '1234';
+}
+
+function isLoggedIn() {
+  return sessionStorage.getItem(LOGIN_KEY) === '1';
+}
 
 function getToken() {
-  return sessionStorage.getItem(STORAGE_KEY);
+  return config.githubToken || '';
 }
 
 function getRepo() {
-  return sessionStorage.getItem(REPO_KEY) || config.repo;
+  return config.repo || '';
 }
 
 function getBranch() {
   return config.branch || 'main';
+}
+
+function requireToken() {
+  if (!getToken()) {
+    throw new Error('ატვირთვისთვის დაამატეთ githubToken ფაილში js/config.js');
+  }
 }
 
 function setStatus(message, type = '') {
@@ -62,6 +73,7 @@ function decodeBase64Utf8(b64) {
 }
 
 async function githubFetch(path, options = {}) {
+  requireToken();
   const token = getToken();
   const response = await fetch(`https://api.github.com${path}`, {
     ...options,
@@ -75,13 +87,7 @@ async function githubFetch(path, options = {}) {
 
   const data = await response.json().catch(() => ({}));
   if (!response.ok) {
-    const msg = data.message || 'GitHub API შეცდომა';
-    if (msg.includes('Resource not accessible')) {
-      throw new Error(
-        'ტოკენს არ აქვს საჭირო უფლება. შექმენით Classic ტოკენი (repo) აქ: github.com/settings/tokens/new'
-      );
-    }
-    throw new Error(msg);
+    throw new Error(data.message || 'GitHub API შეცდომა');
   }
   return data;
 }
@@ -147,9 +153,20 @@ async function saveGallery(content, message) {
   );
 }
 
+async function loadGalleryPublic() {
+  const response = await fetch(`${assetUrl('data/gallery.json')}?t=${Date.now()}`, {
+    cache: 'no-store',
+  });
+  if (!response.ok) throw new Error('გალერეის ჩატვირთვა ვერ მოხერხდა');
+  return response.json();
+}
+
 async function loadGalleryData() {
-  const { content } = await getFileContent('data/gallery.json');
-  return content;
+  if (getToken()) {
+    const { content } = await getFileContent('data/gallery.json');
+    return content;
+  }
+  return loadGalleryPublic();
 }
 
 function renderItems(items) {
@@ -219,8 +236,6 @@ function renderItems(items) {
   });
 }
 
-let cachedItems = [];
-
 function renderItemsFromCache() {
   renderItems(cachedItems);
 }
@@ -237,38 +252,33 @@ async function refreshItems() {
 }
 
 async function showPanel() {
-  const user = await githubFetch('/user');
-  userName.textContent = user.login;
   loginSection.classList.add('hidden');
   panelSection.classList.remove('hidden');
+
+  if (!getToken()) {
+    setStatus('ნახვა მუშაობს. ატვირთვისთვის დაამატეთ githubToken → js/config.js', '');
+  }
+
   await refreshItems();
 }
 
 loginForm.addEventListener('submit', async (e) => {
   e.preventDefault();
-  const token = tokenInput.value.trim();
-  const repo = repoInput.value.trim();
+  const pin = pinInput.value.trim();
 
-  if (!repo.includes('/')) {
-    setStatus('რეპოზიტორია უნდა იყოს ფორმატით: username/craftwood', 'error');
+  if (pin !== getAdminPin()) {
+    setStatus('არასწორი PIN კოდი.', 'error');
     return;
   }
 
-  sessionStorage.setItem(STORAGE_KEY, token);
-  sessionStorage.setItem(REPO_KEY, repo);
-
-  try {
-    await showPanel();
-    setStatus('');
-    tokenInput.value = '';
-  } catch (err) {
-    sessionStorage.removeItem(STORAGE_KEY);
-    setStatus(err.message, 'error');
-  }
+  sessionStorage.setItem(LOGIN_KEY, '1');
+  pinInput.value = '';
+  setStatus('');
+  await showPanel();
 });
 
 logoutBtn.addEventListener('click', () => {
-  sessionStorage.removeItem(STORAGE_KEY);
+  sessionStorage.removeItem(LOGIN_KEY);
   panelSection.classList.add('hidden');
   loginSection.classList.remove('hidden');
   setStatus('');
@@ -286,6 +296,7 @@ uploadForm.addEventListener('submit', async (e) => {
   setStatus('იტვირთება...', '');
 
   try {
+    requireToken();
     const ext = file.name.split('.').pop().toLowerCase();
     const filename = `${slugify()}.${ext}`;
     const imagePath = `images/uploads/${filename}`;
@@ -320,6 +331,7 @@ async function saveItem(index) {
   setStatus('ინახება...', '');
 
   try {
+    requireToken();
     const { content } = await getFileContent('data/gallery.json');
     content.items[index] = { ...content.items[index], title, category };
     await saveGallery(content, `Update gallery item: ${title}`);
@@ -338,6 +350,7 @@ async function deleteItem(index) {
   setStatus('იშლება...', '');
 
   try {
+    requireToken();
     const { content } = await getFileContent('data/gallery.json');
     const [removed] = content.items.splice(index, 1);
     await saveGallery(content, `Remove gallery item: ${removed.title}`);
@@ -349,8 +362,6 @@ async function deleteItem(index) {
   }
 }
 
-if (getToken()) {
-  showPanel().catch(() => {
-    sessionStorage.removeItem(STORAGE_KEY);
-  });
+if (isLoggedIn()) {
+  showPanel();
 }

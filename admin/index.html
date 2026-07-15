@@ -18,28 +18,19 @@
 
     <section id="login-section" class="card">
       <h2>შესვლა</h2>
-      <p class="hint">შეიყვანეთ GitHub Personal Access Token რეპოზიტორიის რედაქტირების უფლებით.</p>
+      <p class="hint">შეიყვანეთ ადმინის PIN კოდი.</p>
       <form id="login-form">
         <label>
-          GitHub Token
-          <input type="password" id="token-input" required placeholder="ghp_...">
-        </label>
-        <label>
-          რეპოზიტორია
-          <input type="text" id="repo-input" required placeholder="username/craftwood">
+          PIN კოდი
+          <input type="password" id="pin-input" required placeholder="••••" maxlength="20" inputmode="numeric">
         </label>
         <button type="submit" class="btn btn-primary">შესვლა</button>
       </form>
-      <p class="help">
-        <strong>ტოკენის შექმნა (Classic):</strong>
-        <a href="https://github.com/settings/tokens/new" target="_blank" rel="noopener">github.com/settings/tokens/new</a>
-        — მონიშნეთ მხოლოდ <strong>repo</strong> (მთელი ყუთი). Fine-grained ტოკენი ხშირად არ მუშაობს.
-      </p>
     </section>
 
     <section id="panel-section" class="hidden">
       <div class="panel-top">
-        <p>შესული ხართ როგორც <strong id="user-name"></strong></p>
+        <p>შესული ხართ როგორც <strong id="user-name">ადმინი</strong></p>
         <button id="logout-btn" class="btn btn-ghost">გასვლა</button>
       </div>
 
