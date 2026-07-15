@@ -28,9 +28,43 @@ function isLoggedIn() {
 }
 
 function getToken() {
-  return config.githubToken || sessionStorage.getItem(TOKEN_SESSION) || '';
+  const local = window.CRAFTWOOD_LOCAL || {};
+  return local.githubToken || config.githubToken || sessionStorage.getItem(TOKEN_SESSION) || '';
 }
 
+async function testToken(token) {
+  const response = await fetch('https://api.github.com/user', {
+    headers: {
+      Accept: 'application/vnd.github+json',
+      Authorization: `Bearer ${token}`,
+      'X-GitHub-Api-Version': '2022-11-28',
+    },
+  });
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    throw new Error(data.message || 'ტოკენი არასწორია');
+  }
+  return data;
+}
+
+function requireToken() {
+  if (!getToken()) {
+    tokenSetup.classList.remove('hidden');
+    tokenSetup.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    throw new Error('ჯერ შეიყვანეთ GitHub ტოკენი ზემოთ (Classic, repo)');
+  }
+}
+
+function updateTokenUI() {
+  if (getToken()) {
+    tokenSetup.classList.add('token-setup--ok');
+    tokenSetup.querySelector('h2').textContent = '✓ GitHub ტოკენი დაყენებულია';
+    setTimeout(() => tokenSetup.classList.add('hidden'), 1500);
+  } else {
+    tokenSetup.classList.remove('hidden', 'token-setup--ok');
+    tokenSetup.querySelector('h2').textContent = '⚠️ GitHub ტოკენი საჭიროა';
+  }
+}
 function getRepo() {
   return config.repo || '';
 }
@@ -39,23 +73,20 @@ function getBranch() {
   return config.branch || 'main';
 }
 
-function requireToken() {
-  if (!getToken()) {
-    throw new Error('შეიყვანეთ GitHub ტოკენი ზემოთ (Classic, repo)');
-  }
-}
-
-function updateTokenUI() {
-  if (getToken()) {
-    tokenSetup.classList.add('hidden');
-  } else {
-    tokenSetup.classList.remove('hidden');
-  }
-}
-
 function setStatus(message, type = '') {
   statusEl.textContent = message;
-  statusEl.className = `status ${type}`.trim();
+  statusEl.className = `status status-global ${type}`.trim();
+  if (message && type === 'error') {
+    statusEl.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  }
+}
+
+function encodeRepoPath(path) {
+  return path.split('/').map(encodeURIComponent).join('/');
+}
+
+function encodeAssetPath(path) {
+  return path.split('/').map(encodeURIComponent).join('/');
 }
 
 function escapeHtml(text) {
@@ -76,7 +107,7 @@ function assetUrl(relativePath) {
 }
 
 function imagePreviewUrl(path) {
-  return `${assetUrl(path)}?t=${Date.now()}`;
+  return `${assetUrl(encodeAssetPath(path))}?t=${Date.now()}`;
 }
 
 function encodeUtf8Base64(str) {
@@ -109,7 +140,17 @@ async function githubFetch(path, options = {}) {
 
   const data = await response.json().catch(() => ({}));
   if (!response.ok) {
-    throw new Error(data.message || 'GitHub API შეცდომა');
+    const msg = data.message || 'GitHub API შეცდომა';
+    if (response.status === 401) {
+      throw new Error('ტოკენი არასწორია. შექმენით Classic ტოკენი (repo).');
+    }
+    if (response.status === 403) {
+      throw new Error('ტოკენს არ აქვს წერის უფლება. Classic ტოკენი + repo scope.');
+    }
+    if (response.status === 404) {
+      throw new Error(`ფაილი ვერ მოიძებნა: ${msg}`);
+    }
+    throw new Error(msg);
   }
   return data;
 }
@@ -134,7 +175,7 @@ function isUploadedImage(path) {
 async function getFileContent(path) {
   const [owner, repo] = getRepo().split('/');
   const data = await githubFetch(
-    `/repos/${owner}/${repo}/contents/${path}?ref=${getBranch()}`
+    `/repos/${owner}/${repo}/contents/${encodeRepoPath(path)}?ref=${getBranch()}`
   );
   const content = JSON.parse(decodeBase64Utf8(data.content));
   return { content, sha: data.sha };
@@ -144,7 +185,7 @@ async function getRepoFileSha(path) {
   try {
     const [owner, repo] = getRepo().split('/');
     const data = await githubFetch(
-      `/repos/${owner}/${repo}/contents/${path}?ref=${getBranch()}`
+      `/repos/${owner}/${repo}/contents/${encodeRepoPath(path)}?ref=${getBranch()}`
     );
     return data.sha;
   } catch {
@@ -161,7 +202,7 @@ async function putFile(path, content, message, sha) {
   };
   if (sha) body.sha = sha;
 
-  return githubFetch(`/repos/${owner}/${repo}/contents/${path}`, {
+  return githubFetch(`/repos/${owner}/${repo}/contents/${encodeRepoPath(path)}`, {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body),
@@ -170,7 +211,7 @@ async function putFile(path, content, message, sha) {
 
 async function putBinaryFile(path, base64Content, message) {
   const [owner, repo] = getRepo().split('/');
-  return githubFetch(`/repos/${owner}/${repo}/contents/${path}`, {
+  return githubFetch(`/repos/${owner}/${repo}/contents/${encodeRepoPath(path)}`, {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
@@ -186,7 +227,7 @@ async function deleteRepoFile(path, message) {
   if (!sha) return;
 
   const [owner, repo] = getRepo().split('/');
-  await githubFetch(`/repos/${owner}/${repo}/contents/${path}`, {
+  await githubFetch(`/repos/${owner}/${repo}/contents/${encodeRepoPath(path)}`, {
     method: 'DELETE',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ message, sha, branch: getBranch() }),
@@ -317,11 +358,19 @@ saveTokenBtn.addEventListener('click', async () => {
     return;
   }
 
-  sessionStorage.setItem(TOKEN_SESSION, token);
-  sessionTokenInput.value = '';
-  updateTokenUI();
-  setStatus('ტოკენი შენახულია.', 'success');
-  await refreshItems();
+  setStatus('ტოკენს ვამოწმებ...', '');
+
+  try {
+    const user = await testToken(token);
+    sessionStorage.setItem(TOKEN_SESSION, token);
+    sessionTokenInput.value = '';
+    updateTokenUI();
+    setStatus(`ტოკენი OK (${user.login}). ახლა წაშლა/რედაქტირება მუშაობს.`, 'success');
+    await refreshItems();
+  } catch (err) {
+    sessionStorage.removeItem(TOKEN_SESSION);
+    setStatus(err.message, 'error');
+  }
 });
 
 loginForm.addEventListener('submit', async (e) => {
@@ -393,10 +442,16 @@ async function saveItem(index) {
     return;
   }
 
+  try {
+    requireToken();
+  } catch (err) {
+    setStatus(err.message, 'error');
+    return;
+  }
+
   setStatus('ინახება...', '');
 
   try {
-    requireToken();
     const { content } = await getFileContent('data/gallery.json');
     const item = { ...content.items[index], title, category };
 
@@ -426,12 +481,20 @@ async function saveItem(index) {
 
 async function deleteItem(index) {
   const item = cachedItems[index];
+  if (!item) return;
+
+  try {
+    requireToken();
+  } catch (err) {
+    setStatus(err.message, 'error');
+    return;
+  }
+
   if (!confirm(`ნამდვილად გსურთ წაშლა?\n${item.title}`)) return;
 
   setStatus('იშლება...', '');
 
   try {
-    requireToken();
     const { content } = await getFileContent('data/gallery.json');
     const [removed] = content.items.splice(index, 1);
     await saveGallery(content, `Remove gallery item: ${removed.title}`);

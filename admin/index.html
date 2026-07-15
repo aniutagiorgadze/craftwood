@@ -34,15 +34,18 @@
         <button id="logout-btn" class="btn btn-ghost">გასვლა</button>
       </div>
 
-      <div id="token-setup" class="card hidden">
-        <h2>GitHub ტოკენი (ატვირთვისთვის)</h2>
-        <p class="hint">ერთხელ შეიყვანეთ Classic ტოკენი (repo). ინახება მხოლოდ ამ ბრაუზერის სესიაში.</p>
+      <div id="token-setup" class="card token-setup--required">
+        <h2>⚠️ GitHub ტოკენი საჭიროა</h2>
+        <p class="hint">PIN-ით შესვლა მხოლოდ გვერდს გიხსნით. <strong>წაშლა და რედაქტირება</strong> მუშაობს მხოლოდ ტოკენით.</p>
+        <p class="hint">Classic ტოკენი (repo): <a href="https://github.com/settings/tokens/new?scopes=repo&amp;description=craftwood-admin" target="_blank" rel="noopener">შექმნა</a></p>
         <label>
           Token
           <input type="password" id="session-token-input" placeholder="ghp_...">
         </label>
-        <button type="button" class="btn btn-primary" id="save-token-btn">ტოკენის შენახვა</button>
+        <button type="button" class="btn btn-primary" id="save-token-btn">ტოკენის შენახვა და შემოწმება</button>
       </div>
+
+      <p id="status" class="status status-global" aria-live="polite"></p>
 
       <div class="card">
         <h2>ახალი ფოტოს დამატება</h2>
@@ -61,7 +64,6 @@
           </label>
           <button type="submit" class="btn btn-primary" id="upload-btn">ატვირთვა</button>
         </form>
-        <p id="status" class="status" aria-live="polite"></p>
       </div>
 
       <div class="card">
@@ -72,6 +74,7 @@
   </div>
 
   <script src="../js/config.js"></script>
+  <script src="../js/config.local.js" onerror="void 0"></script>
   <script src="admin.js"></script>
 </body>
 </html>
