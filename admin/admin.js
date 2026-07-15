@@ -183,14 +183,31 @@ async function deleteRepoFile(path, message) {
   });
 }
 
-async function saveGallery(content, message) {
-  const { sha } = await getFileContent('data/gallery.json');
+async function saveGallery(content, message, fileSha) {
   await putFile(
     'data/gallery.json',
     JSON.stringify(content, null, 2) + '\n',
     message,
-    sha
+    fileSha
   );
+}
+
+async function updateGallery(mutator, message) {
+  for (let attempt = 0; attempt < 3; attempt++) {
+    const { content, sha } = await getFileContent('data/gallery.json');
+    const result = mutator(content);
+    if (result === false) {
+      throw new Error('ნამუშევერი ვერ მოიძებნა.');
+    }
+    try {
+      await saveGallery(content, message, sha);
+      return content;
+    } catch (err) {
+      const stale = err.message.includes('does not match') || err.message.includes('409');
+      if (!stale || attempt === 2) throw err;
+    }
+  }
+  throw new Error('gallery.json განახლება ვერ მოხერხდა. სცადეთ თავიდან.');
 }
 
 async function loadGalleryData() {
@@ -342,13 +359,15 @@ uploadForm.addEventListener('submit', async (e) => {
 
     await putBinaryFile(imagePath, base64, `Add image: ${title}`);
 
-    const { content } = await getFileContent('data/gallery.json');
-    content.items.push({ src: imagePath, title, category });
-    await saveGallery(content, `Add gallery item: ${title}`);
+    const content = await updateGallery((gallery) => {
+      gallery.items.push({ src: imagePath, title, category });
+      return true;
+    }, `Add gallery item: ${title}`);
 
+    cachedItems = content.items;
     uploadForm.reset();
     editingIndex = null;
-    await refreshItems();
+    renderItems(cachedItems);
     setStatus('ფოტო წარმატებით აიტვირთა! საიტი განახლდება 1-2 წუთში.', 'success');
   } catch (err) {
     setStatus(err.message, 'error');
@@ -372,32 +391,44 @@ async function saveItem(index) {
 
   setStatus('ინახება...', '');
 
+  const targetSrc = cachedItems[index]?.src;
+  if (!targetSrc) return;
+
   try {
-    const { content } = await getFileContent('data/gallery.json');
-    const item = { ...content.items[index], title, category };
+    let newPath = null;
+    let oldPath = null;
 
     if (newFile) {
       const ext = newFile.name.split('.').pop().toLowerCase();
-      const newPath = `images/uploads/${slugify()}.${ext}`;
+      newPath = `images/uploads/${slugify()}.${ext}`;
       const base64 = await fileToBase64(newFile);
       await putBinaryFile(newPath, base64, `Replace image: ${title}`);
-
-      const oldPath = content.items[index].src;
-      if (isUploadedImage(oldPath)) {
-        await deleteRepoFile(oldPath, `Delete old image: ${title}`);
-      }
-
-      item.src = newPath;
+      oldPath = targetSrc;
     }
 
-    content.items[index] = item;
-    await saveGallery(content, `Update gallery item: ${title}`);
+    const content = await updateGallery((gallery) => {
+      const remoteIndex = gallery.items.findIndex((i) => i.src === targetSrc);
+      if (remoteIndex === -1) return false;
+
+      gallery.items[remoteIndex] = {
+        ...gallery.items[remoteIndex],
+        title,
+        category,
+        ...(newPath ? { src: newPath } : {}),
+      };
+      return true;
+    }, `Update gallery item: ${title}`);
+
+    if (oldPath && isUploadedImage(oldPath)) {
+      await deleteRepoFile(oldPath, `Delete old image: ${title}`);
+    }
 
     cachedItems = content.items;
     editingIndex = null;
     renderItems(cachedItems);
     setStatus('შენახულია! საიტი განახლდება 1-2 წუთში.', 'success');
   } catch (err) {
+    await refreshItems();
     setStatus(err.message, 'error');
   }
 }
@@ -407,7 +438,9 @@ async function deleteItem(index) {
   if (!item) return;
   if (!confirm(`ნამდვილად გსურთ წაშლა?\n${item.title}`)) return;
 
+  const targetSrc = item.src;
   const backup = [...cachedItems];
+
   cachedItems.splice(index, 1);
   if (editingIndex === index) editingIndex = null;
   else if (editingIndex !== null && editingIndex > index) editingIndex -= 1;
@@ -415,11 +448,16 @@ async function deleteItem(index) {
   setStatus('იშლება...', '');
 
   try {
-    const { content } = await getFileContent('data/gallery.json');
-    const [removed] = content.items.splice(index, 1);
-    await saveGallery(content, `Remove gallery item: ${removed.title}`);
+    let removed = null;
 
-    if (isUploadedImage(removed.src)) {
+    const content = await updateGallery((gallery) => {
+      const remoteIndex = gallery.items.findIndex((i) => i.src === targetSrc);
+      if (remoteIndex === -1) return false;
+      [removed] = gallery.items.splice(remoteIndex, 1);
+      return true;
+    }, `Remove gallery item: ${item.title}`);
+
+    if (removed && isUploadedImage(removed.src)) {
       await deleteRepoFile(removed.src, `Delete image file: ${removed.title}`);
     }
 
