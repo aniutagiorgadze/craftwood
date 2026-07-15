@@ -18,7 +18,7 @@ function renderGallery() {
     .map(
       (item, index) => `
       <article class="gallery-item" data-index="${index}">
-        <img src="${item.src}" alt="${item.title}" loading="lazy">
+        <img src="${encodeURI(item.src)}" alt="${item.title}" loading="lazy">
         <div class="gallery-item-info">
           <h3>${item.title}</h3>
           <p>${item.category}</p>
@@ -36,7 +36,7 @@ function renderGallery() {
 function openLightbox(index) {
   currentIndex = index;
   const item = galleryItems[index];
-  lightboxImg.src = item.src;
+  lightboxImg.src = encodeURI(item.src);
   lightboxImg.alt = item.title;
   lightboxCaption.textContent = item.title;
   lightbox.classList.add('active');
@@ -62,7 +62,9 @@ function showNext() {
 
 async function loadGallery() {
   try {
-    const response = await fetch('data/gallery.json');
+    const response = await fetch(`data/gallery.json?t=${Date.now()}`, {
+      cache: 'no-store',
+    });
     if (!response.ok) throw new Error('Failed to load gallery');
     const data = await response.json();
     galleryItems = data.items || [];

@@ -16,6 +16,8 @@ const uploadBtn = document.getElementById('upload-btn');
 const config = window.CRAFTWOOD_CONFIG || { repo: '', branch: 'main' };
 repoInput.value = sessionStorage.getItem(REPO_KEY) || config.repo || '';
 
+let editingIndex = null;
+
 function getToken() {
   return sessionStorage.getItem(STORAGE_KEY);
 }
@@ -33,6 +35,32 @@ function setStatus(message, type = '') {
   statusEl.className = `status ${type}`.trim();
 }
 
+function escapeHtml(text) {
+  const div = document.createElement('div');
+  div.textContent = text;
+  return div.innerHTML;
+}
+
+function assetUrl(relativePath) {
+  const base = window.location.href.replace(/\/admin\/.*$/, '/');
+  return new URL(relativePath, base).href;
+}
+
+function encodeUtf8Base64(str) {
+  const bytes = new TextEncoder().encode(str);
+  let binary = '';
+  bytes.forEach((b) => {
+    binary += String.fromCharCode(b);
+  });
+  return btoa(binary);
+}
+
+function decodeBase64Utf8(b64) {
+  const binary = atob(b64.replace(/\n/g, ''));
+  const bytes = Uint8Array.from(binary, (c) => c.charCodeAt(0));
+  return new TextDecoder('utf-8').decode(bytes);
+}
+
 async function githubFetch(path, options = {}) {
   const token = getToken();
   const response = await fetch(`https://api.github.com${path}`, {
@@ -47,7 +75,13 @@ async function githubFetch(path, options = {}) {
 
   const data = await response.json().catch(() => ({}));
   if (!response.ok) {
-    throw new Error(data.message || 'GitHub API შეცდომა');
+    const msg = data.message || 'GitHub API შეცდომა';
+    if (msg.includes('Resource not accessible')) {
+      throw new Error(
+        'ტოკენს არ აქვს საჭირო უფლება. შექმენით Classic ტოკენი (repo) აქ: github.com/settings/tokens/new'
+      );
+    }
+    throw new Error(msg);
   }
   return data;
 }
@@ -61,12 +95,8 @@ function fileToBase64(file) {
   });
 }
 
-function slugify(text) {
-  return text
-    .toLowerCase()
-    .replace(/[^a-z0-9\u10A0-\u10FF]+/g, '-')
-    .replace(/^-|-$/g, '')
-    .slice(0, 40) || 'image';
+function slugify() {
+  return `photo-${Date.now()}`;
 }
 
 async function getFileContent(path) {
@@ -74,7 +104,7 @@ async function getFileContent(path) {
   const data = await githubFetch(
     `/repos/${owner}/${repo}/contents/${path}?ref=${getBranch()}`
   );
-  const content = JSON.parse(atob(data.content.replace(/\n/g, '')));
+  const content = JSON.parse(decodeBase64Utf8(data.content));
   return { content, sha: data.sha };
 }
 
@@ -82,7 +112,7 @@ async function putFile(path, content, message, sha) {
   const [owner, repo] = getRepo().split('/');
   const body = {
     message,
-    content: btoa(unescape(encodeURIComponent(content))),
+    content: encodeUtf8Base64(content),
     branch: getBranch(),
   };
   if (sha) body.sha = sha;
@@ -107,13 +137,14 @@ async function putBinaryFile(path, base64Content, message) {
   });
 }
 
-async function deleteFile(path, sha, message) {
-  const [owner, repo] = getRepo().split('/');
-  return githubFetch(`/repos/${owner}/${repo}/contents/${path}`, {
-    method: 'DELETE',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ message, sha, branch: getBranch() }),
-  });
+async function saveGallery(content, message) {
+  const { sha } = await getFileContent('data/gallery.json');
+  await putFile(
+    'data/gallery.json',
+    JSON.stringify(content, null, 2) + '\n',
+    message,
+    sha
+  );
 }
 
 async function loadGalleryData() {
@@ -128,31 +159,80 @@ function renderItems(items) {
   }
 
   itemsList.innerHTML = items
-    .map(
-      (item, index) => `
-      <div class="item-row" data-index="${index}">
-        <img src="../${item.src}" alt="${item.title}">
-        <div class="item-info">
-          <h3>${item.title}</h3>
-          <p>${item.category}</p>
+    .map((item, index) => {
+      const isEditing = editingIndex === index;
+      const imgSrc = assetUrl(item.src);
+
+      if (isEditing) {
+        return `
+          <div class="item-row item-row--editing" data-index="${index}">
+            <img src="${imgSrc}" alt="">
+            <div class="item-edit-fields">
+              <label>სათაური<input type="text" class="edit-title" value="${escapeHtml(item.title)}"></label>
+              <label>კატეგორია<input type="text" class="edit-category" value="${escapeHtml(item.category)}"></label>
+              <div class="item-actions">
+                <button class="btn btn-primary save-btn" data-index="${index}">შენახვა</button>
+                <button class="btn btn-ghost cancel-btn" data-index="${index}">გაუქმება</button>
+              </div>
+            </div>
+          </div>
+        `;
+      }
+
+      return `
+        <div class="item-row" data-index="${index}">
+          <img src="${imgSrc}" alt="${escapeHtml(item.title)}" onerror="this.classList.add('img-error')">
+          <div class="item-info">
+            <h3>${escapeHtml(item.title)}</h3>
+            <p>${escapeHtml(item.category)}</p>
+            <p class="item-path">${escapeHtml(item.src)}</p>
+          </div>
+          <div class="item-actions">
+            <button class="btn btn-ghost edit-btn" data-index="${index}">რედაქტირება</button>
+            <button class="btn btn-danger delete-btn" data-index="${index}">წაშლა</button>
+          </div>
         </div>
-        <button class="btn btn-danger delete-btn" data-index="${index}">წაშლა</button>
-      </div>
-    `
-    )
+      `;
+    })
     .join('');
+
+  itemsList.querySelectorAll('.edit-btn').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      editingIndex = Number(btn.dataset.index);
+      renderItemsFromCache();
+    });
+  });
+
+  itemsList.querySelectorAll('.cancel-btn').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      editingIndex = null;
+      renderItemsFromCache();
+    });
+  });
+
+  itemsList.querySelectorAll('.save-btn').forEach((btn) => {
+    btn.addEventListener('click', () => saveItem(Number(btn.dataset.index)));
+  });
 
   itemsList.querySelectorAll('.delete-btn').forEach((btn) => {
     btn.addEventListener('click', () => deleteItem(Number(btn.dataset.index)));
   });
 }
 
+let cachedItems = [];
+
+function renderItemsFromCache() {
+  renderItems(cachedItems);
+}
+
 async function refreshItems() {
   try {
     const data = await loadGalleryData();
-    renderItems(data.items || []);
+    cachedItems = data.items || [];
+    editingIndex = null;
+    renderItems(cachedItems);
   } catch (err) {
-    itemsList.innerHTML = `<p class="empty-list">${err.message}</p>`;
+    itemsList.innerHTML = `<p class="empty-list">${escapeHtml(err.message)}</p>`;
   }
 }
 
@@ -207,25 +287,15 @@ uploadForm.addEventListener('submit', async (e) => {
 
   try {
     const ext = file.name.split('.').pop().toLowerCase();
-    const filename = `${Date.now()}-${slugify(title)}.${ext}`;
+    const filename = `${slugify()}.${ext}`;
     const imagePath = `images/uploads/${filename}`;
     const base64 = await fileToBase64(file);
 
     await putBinaryFile(imagePath, base64, `Add image: ${title}`);
 
-    const { content, sha } = await getFileContent('data/gallery.json');
-    content.items.push({
-      src: imagePath,
-      title,
-      category,
-    });
-
-    await putFile(
-      'data/gallery.json',
-      JSON.stringify(content, null, 2) + '\n',
-      `Add gallery item: ${title}`,
-      sha
-    );
+    const { content } = await getFileContent('data/gallery.json');
+    content.items.push({ src: imagePath, title, category });
+    await saveGallery(content, `Add gallery item: ${title}`);
 
     uploadForm.reset();
     await refreshItems();
@@ -237,22 +307,41 @@ uploadForm.addEventListener('submit', async (e) => {
   }
 });
 
+async function saveItem(index) {
+  const row = itemsList.querySelector(`.item-row[data-index="${index}"]`);
+  const title = row.querySelector('.edit-title').value.trim();
+  const category = row.querySelector('.edit-category').value.trim();
+
+  if (!title || !category) {
+    setStatus('სათაური და კატეგორია სავალდებულოა.', 'error');
+    return;
+  }
+
+  setStatus('ინახება...', '');
+
+  try {
+    const { content } = await getFileContent('data/gallery.json');
+    content.items[index] = { ...content.items[index], title, category };
+    await saveGallery(content, `Update gallery item: ${title}`);
+    editingIndex = null;
+    await refreshItems();
+    setStatus('შენახულია.', 'success');
+  } catch (err) {
+    setStatus(err.message, 'error');
+  }
+}
+
 async function deleteItem(index) {
-  if (!confirm('ნამდვილად გსურთ ამ ნამუშევრის წაშლა?')) return;
+  const item = cachedItems[index];
+  if (!confirm(`ნამდვილად გსურთ წაშლა?\n${item.title}`)) return;
 
   setStatus('იშლება...', '');
 
   try {
-    const { content, sha } = await getFileContent('data/gallery.json');
+    const { content } = await getFileContent('data/gallery.json');
     const [removed] = content.items.splice(index, 1);
-
-    await putFile(
-      'data/gallery.json',
-      JSON.stringify(content, null, 2) + '\n',
-      `Remove gallery item: ${removed.title}`,
-      sha
-    );
-
+    await saveGallery(content, `Remove gallery item: ${removed.title}`);
+    editingIndex = null;
     await refreshItems();
     setStatus('წაიშალა.', 'success');
   } catch (err) {
