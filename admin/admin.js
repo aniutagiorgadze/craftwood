@@ -47,6 +47,25 @@ async function testToken(token) {
   return data;
 }
 
+async function testRepoAccess(token) {
+  const [owner, repo] = getRepo().split('/');
+  const response = await fetch(`https://api.github.com/repos/${owner}/${repo}`, {
+    headers: {
+      Accept: 'application/vnd.github+json',
+      Authorization: `Bearer ${token}`,
+      'X-GitHub-Api-Version': '2022-11-28',
+    },
+  });
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    throw new Error(data.message || 'რეპოზიტორი ვერ მოიძებნა');
+  }
+  if (!data.permissions?.push) {
+    throw new Error('ტოკენს არ აქვს წერის უფლება. Classic ტოკენი + repo scope.');
+  }
+  return data;
+}
+
 function requireToken() {
   if (!getToken()) {
     tokenSetup.classList.remove('hidden');
