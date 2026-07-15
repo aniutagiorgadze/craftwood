@@ -1,14 +1,10 @@
 const LOGIN_KEY = 'craftwood_admin_logged_in';
-const TOKEN_SESSION = 'craftwood_github_token';
 
 const loginSection = document.getElementById('login-section');
 const panelSection = document.getElementById('panel-section');
-const tokenSetup = document.getElementById('token-setup');
 const loginForm = document.getElementById('login-form');
 const uploadForm = document.getElementById('upload-form');
 const pinInput = document.getElementById('pin-input');
-const sessionTokenInput = document.getElementById('session-token-input');
-const saveTokenBtn = document.getElementById('save-token-btn');
 const logoutBtn = document.getElementById('logout-btn');
 const itemsList = document.getElementById('items-list');
 const statusEl = document.getElementById('status');
@@ -29,61 +25,11 @@ function isLoggedIn() {
 
 function getToken() {
   const local = window.CRAFTWOOD_LOCAL || {};
-  return local.githubToken || config.githubToken || sessionStorage.getItem(TOKEN_SESSION) || '';
+  const token = local.githubToken || config.githubToken || '';
+  if (!token || token === '__ADMIN_GITHUB_TOKEN__') return '';
+  return token;
 }
 
-async function testToken(token) {
-  const response = await fetch('https://api.github.com/user', {
-    headers: {
-      Accept: 'application/vnd.github+json',
-      Authorization: `Bearer ${token}`,
-      'X-GitHub-Api-Version': '2022-11-28',
-    },
-  });
-  const data = await response.json().catch(() => ({}));
-  if (!response.ok) {
-    throw new Error(data.message || 'ტოკენი არასწორია');
-  }
-  return data;
-}
-
-async function testRepoAccess(token) {
-  const [owner, repo] = getRepo().split('/');
-  const response = await fetch(`https://api.github.com/repos/${owner}/${repo}`, {
-    headers: {
-      Accept: 'application/vnd.github+json',
-      Authorization: `Bearer ${token}`,
-      'X-GitHub-Api-Version': '2022-11-28',
-    },
-  });
-  const data = await response.json().catch(() => ({}));
-  if (!response.ok) {
-    throw new Error(data.message || 'რეპოზიტორი ვერ მოიძებნა');
-  }
-  if (!data.permissions?.push) {
-    throw new Error('ტოკენს არ აქვს წერის უფლება. Classic ტოკენი + repo scope.');
-  }
-  return data;
-}
-
-function requireToken() {
-  if (!getToken()) {
-    tokenSetup.classList.remove('hidden');
-    tokenSetup.scrollIntoView({ behavior: 'smooth', block: 'center' });
-    throw new Error('ჯერ შეიყვანეთ GitHub ტოკენი ზემოთ (Classic, repo)');
-  }
-}
-
-function updateTokenUI() {
-  if (getToken()) {
-    tokenSetup.classList.add('token-setup--ok');
-    tokenSetup.querySelector('h2').textContent = '✓ GitHub ტოკენი დაყენებულია';
-    setTimeout(() => tokenSetup.classList.add('hidden'), 1500);
-  } else {
-    tokenSetup.classList.remove('hidden', 'token-setup--ok');
-    tokenSetup.querySelector('h2').textContent = '⚠️ GitHub ტოკენი საჭიროა';
-  }
-}
 function getRepo() {
   return config.repo || '';
 }
@@ -144,6 +90,12 @@ function decodeBase64Utf8(b64) {
   return new TextDecoder('utf-8').decode(bytes);
 }
 
+function requireToken() {
+  if (!getToken()) {
+    throw new Error('ადმინი არ არის კონფიგურირებული (GitHub token).');
+  }
+}
+
 async function githubFetch(path, options = {}) {
   requireToken();
   const token = getToken();
@@ -161,10 +113,10 @@ async function githubFetch(path, options = {}) {
   if (!response.ok) {
     const msg = data.message || 'GitHub API შეცდომა';
     if (response.status === 401) {
-      throw new Error('ტოკენი არასწორია. შექმენით Classic ტოკენი (repo).');
+      throw new Error('ადმინის კონფიგურაცია არასწორია.');
     }
     if (response.status === 403) {
-      throw new Error('ტოკენს არ აქვს წერის უფლება. Classic ტოკენი + repo scope.');
+      throw new Error('წერის უფლება არ გაქვთ.');
     }
     if (response.status === 404) {
       throw new Error(`ფაილი ვერ მოიძებნა: ${msg}`);
@@ -366,31 +318,8 @@ async function refreshItems() {
 async function showPanel() {
   loginSection.classList.add('hidden');
   panelSection.classList.remove('hidden');
-  updateTokenUI();
   await refreshItems();
 }
-
-saveTokenBtn.addEventListener('click', async () => {
-  const token = sessionTokenInput.value.trim();
-  if (!token) {
-    setStatus('შეიყვანეთ ტოკენი.', 'error');
-    return;
-  }
-
-  setStatus('ტოკენს ვამოწმებ...', '');
-
-  try {
-    const user = await testToken(token);
-    sessionStorage.setItem(TOKEN_SESSION, token);
-    sessionTokenInput.value = '';
-    updateTokenUI();
-    setStatus(`ტოკენი OK (${user.login}). ახლა წაშლა/რედაქტირება მუშაობს.`, 'success');
-    await refreshItems();
-  } catch (err) {
-    sessionStorage.removeItem(TOKEN_SESSION);
-    setStatus(err.message, 'error');
-  }
-});
 
 loginForm.addEventListener('submit', async (e) => {
   e.preventDefault();
@@ -461,16 +390,10 @@ async function saveItem(index) {
     return;
   }
 
-  try {
-    requireToken();
-  } catch (err) {
-    setStatus(err.message, 'error');
-    return;
-  }
-
   setStatus('ინახება...', '');
 
   try {
+    requireToken();
     const { content } = await getFileContent('data/gallery.json');
     const item = { ...content.items[index], title, category };
 
@@ -502,18 +425,12 @@ async function deleteItem(index) {
   const item = cachedItems[index];
   if (!item) return;
 
-  try {
-    requireToken();
-  } catch (err) {
-    setStatus(err.message, 'error');
-    return;
-  }
-
   if (!confirm(`ნამდვილად გსურთ წაშლა?\n${item.title}`)) return;
 
   setStatus('იშლება...', '');
 
   try {
+    requireToken();
     const { content } = await getFileContent('data/gallery.json');
     const [removed] = content.items.splice(index, 1);
     await saveGallery(content, `Remove gallery item: ${removed.title}`);

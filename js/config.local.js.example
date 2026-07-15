@@ -1,4 +1,4 @@
-// დააკოპირეთ: config.local.js.example → config.local.js
+// ლოკალური ტესტირებისთვის: config.local.js.example → config.local.js
 // config.local.js არ აიტვირთება GitHub-ზე (gitignore)
 window.CRAFTWOOD_LOCAL = {
   githubToken: 'ghp_...',

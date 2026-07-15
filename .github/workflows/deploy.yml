@@ -23,6 +23,20 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Inject admin GitHub token
+        env:
+          ADMIN_GITHUB_TOKEN: ${{ secrets.ADMIN_GITHUB_TOKEN }}
+        run: |
+          node <<'EOF'
+          const fs = require('fs');
+          const token = process.env.ADMIN_GITHUB_TOKEN || '';
+          const path = 'js/config.js';
+          let config = fs.readFileSync(path, 'utf8');
+          const safe = token.replace(/\\/g, '\\\\').replace(/'/g, "\\'");
+          config = config.replace("'__ADMIN_GITHUB_TOKEN__'", `'${safe}'`);
+          fs.writeFileSync(path, config);
+          EOF
+
       - name: Setup Pages
         uses: actions/configure-pages@v5
         with:

@@ -18,11 +18,11 @@
 
     <section id="login-section" class="card">
       <h2>შესვლა</h2>
-      <p class="hint">შეიყვანეთ ადმინის PIN კოდი.</p>
+      <p class="hint">შეიყვანეთ PIN კოდი: <strong>1234</strong></p>
       <form id="login-form">
         <label>
           PIN კოდი
-          <input type="password" id="pin-input" required placeholder="••••" maxlength="20" inputmode="numeric">
+          <input type="password" id="pin-input" required placeholder="1234" maxlength="20" inputmode="numeric">
         </label>
         <button type="submit" class="btn btn-primary">შესვლა</button>
       </form>
@@ -32,17 +32,6 @@
       <div class="panel-top">
         <p>შესული ხართ როგორც <strong id="user-name">ადმინი</strong></p>
         <button id="logout-btn" class="btn btn-ghost">გასვლა</button>
-      </div>
-
-      <div id="token-setup" class="card token-setup--required">
-        <h2>⚠️ GitHub ტოკენი საჭიროა</h2>
-        <p class="hint">PIN-ით შესვლა მხოლოდ გვერდს გიხსნით. <strong>წაშლა და რედაქტირება</strong> მუშაობს მხოლოდ ტოკენით.</p>
-        <p class="hint">Classic ტოკენი (repo): <a href="https://github.com/settings/tokens/new?scopes=repo&amp;description=craftwood-admin" target="_blank" rel="noopener">შექმნა</a></p>
-        <label>
-          Token
-          <input type="password" id="session-token-input" placeholder="ghp_...">
-        </label>
-        <button type="button" class="btn btn-primary" id="save-token-btn">ტოკენის შენახვა და შემოწმება</button>
       </div>
 
       <p id="status" class="status status-global" aria-live="polite"></p>
