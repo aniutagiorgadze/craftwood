@@ -20,6 +20,26 @@ const confirmCancelBtn = document.getElementById('confirm-cancel');
 const config = window.CRAFTWOOD_CONFIG || { repo: '', branch: 'main' };
 repoInput.value = sessionStorage.getItem(REPO_KEY) || config.repo || '';
 
+const GALLERY_CATEGORIES = [
+  'სამზარეულო',
+  'მისაღები ოთახი',
+  'საძინებელი',
+  'საბავშვო ოთახი',
+  'კარადები და გარდერობები',
+  'მაგიდები',
+  'სკამები და დასაჯდომი ავეჯი',
+  'სააბაზანოს ავეჯი',
+  'დერეფნის ავეჯი',
+  'ოფისის ავეჯი',
+  'კომერციული ავეჯი',
+  'კარები და კედლის პანელები',
+  'თაროები და დეკორატიული ავეჯი',
+  'სრული ინტერიერის პროექტები',
+  'სხვა ...',
+];
+
+const OTHER_CATEGORY = 'სხვა ...';
+
 let editingIndex = null;
 let galleryQueue = Promise.resolve();
 
@@ -86,6 +106,62 @@ function escapeHtml(text) {
   const div = document.createElement('div');
   div.textContent = text;
   return div.innerHTML;
+}
+
+function isPresetCategory(value) {
+  return GALLERY_CATEGORIES.includes(value);
+}
+
+function categorySelectHtml(selectedValue, selectClass, otherClass) {
+  const preset = isPresetCategory(selectedValue) ? selectedValue : OTHER_CATEGORY;
+  const customValue = isPresetCategory(selectedValue) ? '' : selectedValue || '';
+  const options = GALLERY_CATEGORIES.map(
+    (cat) =>
+      `<option value="${escapeHtml(cat)}"${cat === preset ? ' selected' : ''}>${escapeHtml(cat)}</option>`
+  ).join('');
+
+  return `
+    <select class="${selectClass}">${options}</select>
+    <input type="text" class="${otherClass} category-other${preset === OTHER_CATEGORY ? '' : ' hidden'}" value="${escapeHtml(customValue)}" placeholder="ჩაწერეთ კატეგორია">
+  `;
+}
+
+function fillCategorySelect(selectEl, selectedValue = '') {
+  if (!selectEl) return;
+  selectEl.innerHTML = GALLERY_CATEGORIES.map(
+    (cat) =>
+      `<option value="${escapeHtml(cat)}">${escapeHtml(cat)}</option>`
+  ).join('');
+  selectEl.value = isPresetCategory(selectedValue) ? selectedValue : OTHER_CATEGORY;
+}
+
+function syncCategoryOtherVisibility(selectEl, otherEl) {
+  if (!selectEl || !otherEl) return;
+  otherEl.classList.toggle('hidden', selectEl.value !== OTHER_CATEGORY);
+  if (selectEl.value !== OTHER_CATEGORY) {
+    otherEl.value = '';
+  }
+}
+
+function bindCategorySelect(selectEl, otherEl) {
+  if (!selectEl || !otherEl) return;
+  syncCategoryOtherVisibility(selectEl, otherEl);
+  selectEl.addEventListener('change', () => syncCategoryOtherVisibility(selectEl, otherEl));
+}
+
+function readCategoryValue(selectEl, otherEl) {
+  if (!selectEl) return '';
+  if (selectEl.value === OTHER_CATEGORY) {
+    return otherEl?.value.trim() || '';
+  }
+  return selectEl.value;
+}
+
+function initUploadCategorySelect() {
+  const selectEl = document.getElementById('category-input');
+  const otherEl = document.getElementById('category-other-input');
+  fillCategorySelect(selectEl);
+  bindCategorySelect(selectEl, otherEl);
 }
 
 function assetUrl(relativePath) {
@@ -285,7 +361,7 @@ function renderItems(items) {
             <img src="${imgSrc}" alt="" class="edit-preview">
             <div class="item-edit-fields">
               <label>სათაური<input type="text" class="edit-title" value="${escapeHtml(item.title)}"></label>
-              <label>კატეგორია<input type="text" class="edit-category" value="${escapeHtml(item.category)}"></label>
+              <label>კატეგორია${categorySelectHtml(item.category, 'edit-category', 'edit-category-other')}</label>
               <label>ახალი სურათი (არასავალდებულო)<input type="file" class="edit-image" accept="image/*"></label>
               <div class="item-actions">
                 <button type="button" class="btn btn-primary save-btn" data-index="${index}">შენახვა</button>
@@ -318,6 +394,12 @@ function renderItems(items) {
       editingIndex = Number(btn.dataset.index);
       renderItemsFromCache();
     });
+  });
+
+  itemsList.querySelectorAll('.item-row--editing .edit-category').forEach((selectEl) => {
+    const row = selectEl.closest('.item-row');
+    const otherEl = row?.querySelector('.edit-category-other');
+    bindCategorySelect(selectEl, otherEl);
   });
 
   itemsList.querySelectorAll('.cancel-btn').forEach((btn) => {
@@ -360,6 +442,7 @@ async function showPanel() {
   userName.textContent = user.login;
   loginSection.classList.add('hidden');
   panelSection.classList.remove('hidden');
+  initUploadCategorySelect();
   await refreshItems();
 }
 
@@ -397,9 +480,17 @@ uploadForm.addEventListener('submit', async (e) => {
   e.preventDefault();
   const file = document.getElementById('image-input').files[0];
   const title = document.getElementById('title-input').value.trim();
-  const category = document.getElementById('category-input').value.trim();
+  const category = readCategoryValue(
+    document.getElementById('category-input'),
+    document.getElementById('category-other-input')
+  );
 
   if (!file) return;
+
+  if (!title || !category) {
+    setStatus('სათაური და კატეგორია სავალდებულოა.', 'error');
+    return;
+  }
 
   uploadBtn.disabled = true;
   setStatus('იტვირთება...', '');
@@ -436,7 +527,10 @@ async function saveItem(index) {
   if (!row) return;
 
   const title = row.querySelector('.edit-title').value.trim();
-  const category = row.querySelector('.edit-category').value.trim();
+  const category = readCategoryValue(
+    row.querySelector('.edit-category'),
+    row.querySelector('.edit-category-other')
+  );
   const newFile = row.querySelector('.edit-image')?.files[0];
 
   if (!title || !category) {

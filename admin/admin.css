@@ -92,7 +92,8 @@ label {
 
 input[type='text'],
 input[type='password'],
-input[type='file'] {
+input[type='file'],
+select {
   display: block;
   width: 100%;
   margin-top: 0.4rem;
@@ -103,7 +104,12 @@ input[type='file'] {
   background: var(--color-bg);
 }
 
-input:focus {
+.category-other {
+  margin-top: 0.5rem;
+}
+
+input:focus,
+select:focus {
   outline: 2px solid var(--color-accent);
   outline-offset: 1px;
 }
