@@ -14,9 +14,15 @@
   },
   "about": {
     "title": "ჩვენს შესახებ",
-    "paragraphs": [],
-    "features": [],
-    "image": ""
+    "paragraphs": [
+      "კომპანია CraftWood"
+    ],
+    "features": [
+      "ვამზადებთ ავეჯს",
+      "ვჭრით ავეჯის მასალებს, გვაქვს მასალების დიდი არჩევანი",
+      "ტელეფონის ნომერი 598191979"
+    ],
+    "image": "images/placeholder-1.svg"
   },
   "consultation": {
     "title": "შეუკვეთე კონსულტაცია",
