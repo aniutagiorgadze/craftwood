@@ -11,94 +11,135 @@
   <link rel="stylesheet" href="css/style.css">
 </head>
 <body>
-  <header class="header">
-    <nav class="nav container">
-      <a href="#" class="logo">Craftwood</a>
-      <ul class="nav-links">
-        <li><a href="#gallery">გალერეა</a></li>
-        <li><a href="#about">ჩვენს შესახებ</a></li>
-        <li><a href="#contact">კონტაქტი</a></li>
-      </ul>
-      <button class="menu-toggle" aria-label="მენიუ" aria-expanded="false">
-        <span></span>
-        <span></span>
-        <span></span>
-      </button>
-    </nav>
-  </header>
+  <div class="app">
+    <aside class="sidebar" id="sidebar">
+      <button class="sidebar-close" id="sidebar-close" aria-label="მენიუს დახურვა">&times;</button>
+      <a href="#featured" class="sidebar-brand">
+        <span class="sidebar-brand-name" id="brand-name">Craftwood</span>
+        <span class="sidebar-brand-tag">ხელნაკეთი ავეჯი</span>
+      </a>
+      <nav class="sidebar-nav">
+        <a href="#featured" class="sidebar-link" data-view="featured">განსაკუთრებული ნამუშევრები</a>
+        <a href="#materials" class="sidebar-link" data-view="materials">მასალები</a>
+        <a href="#about" class="sidebar-link" data-view="about">ჩვენს შესახებ</a>
+        <a href="#consultation" class="sidebar-link" data-view="consultation">შეუკვეთე კონსულტაცია</a>
+        <a href="#gallery" class="sidebar-link" data-view="gallery">სრული ნამუშევრები</a>
+      </nav>
+      <footer class="sidebar-footer">
+        <p>&copy; <span id="footer-year"></span> Craftwood</p>
+      </footer>
+    </aside>
 
-  <main>
-    <section class="hero">
-      <div class="hero-overlay"></div>
-      <div class="hero-content container">
-        <p class="hero-tag">ხელნაკეთი ავეჯი</p>
-        <h1>თქვენი სახლისთვის<br>უნიკალური ხე</h1>
-        <p class="hero-desc">ჩვენ ვქმნით ავეჯს, რომელიც ცოცხალი ხის სიბრძღვილეს და თქვენს სტილს აერთიანებს.</p>
-        <a href="#gallery" class="btn btn-primary">ნამუშევრების ნახვა</a>
-      </div>
-    </section>
+    <div class="app-main">
+      <header class="mobile-header">
+        <button class="menu-toggle" id="menu-toggle" aria-label="მენიუ" aria-expanded="false">
+          <span></span><span></span><span></span>
+        </button>
+        <span class="mobile-title" id="mobile-title">Craftwood</span>
+      </header>
 
-    <section id="gallery" class="gallery section">
-      <div class="container">
-        <div class="section-header">
-          <h2>ჩვენი ნამუშევრები</h2>
-          <p>გაეცანით ჩვენს უახლეს პროექტებს — მაგიდები, სკამები, კარადები და სხვა.</p>
-        </div>
-        <div class="gallery-grid" id="gallery-grid"></div>
-      </div>
-    </section>
+      <main class="content">
+        <section id="view-featured" class="view view--active" data-view="featured">
+          <header class="view-header view-header--featured">
+            <p class="view-eyebrow">ჩვენი საუკეთესო ნამუშევრები</p>
+            <h1 id="featured-title">განსაკუთრებული ნამუშევრები</h1>
+            <p id="featured-subtitle"></p>
+          </header>
+          <div class="gallery-grid gallery-grid--featured" id="featured-grid"></div>
+        </section>
 
-    <section id="about" class="about section">
-      <div class="container about-grid">
-        <div class="about-text">
-          <h2>Craftwood</h2>
-          <p>ჩვენ ვმუშაობთ ხარისხიან ხესთან და ვქმნით ავეჯს, რომელიც გამოირჩევა გამძლეობით, ესთეტიკითა და დეტალების ყურადღებით.</p>
-          <p>ყოველი ნაკეთობა ინდივიდუალურია — თქვენი სივრცისა და გემოვნების მიხედვით.</p>
-          <ul class="about-features">
-            <li>ხელნაკეთი ხარისხი</li>
-            <li>ინდივიდუალური დიზაინი</li>
-            <li>პრემიუმ მასალები</li>
-          </ul>
-        </div>
-        <div class="about-image">
-          <img src="images/placeholder-1.svg" alt="Craftwood ავეჯი" loading="lazy">
-        </div>
-      </div>
-    </section>
+        <section id="view-materials" class="view" data-view="materials">
+          <header class="view-header">
+            <h1 id="materials-title">მასალები</h1>
+            <p id="materials-subtitle"></p>
+          </header>
+          <div class="materials-grid" id="materials-grid"></div>
+        </section>
 
-    <section id="contact" class="contact section">
-      <div class="container contact-box">
-        <h2>დაგვიკავშირდით</h2>
-        <p>გსურთ ავეჯის შეკვეთა ან კონსულტაცია? მოგვწერეთ ან დაგვირეკეთ.</p>
-        <div class="contact-links">
-          <a href="tel:+995555000000" class="contact-item">
-            <span class="contact-label">ტელეფონი</span>
-            <span>+995 555 00 00 00</span>
-          </a>
-          <a href="mailto:info@craftwood.ge" class="contact-item">
-            <span class="contact-label">ელფოსტა</span>
-            <span>info@craftwood.ge</span>
-          </a>
-        </div>
-      </div>
-    </section>
-  </main>
+        <section id="view-about" class="view" data-view="about">
+          <div class="about-layout">
+            <div class="about-text">
+              <h1 id="about-title">Craftwood</h1>
+              <div id="about-paragraphs"></div>
+              <ul class="about-features" id="about-features"></ul>
+            </div>
+            <div class="about-image">
+              <img id="about-image" src="images/placeholder-1.svg" alt="" loading="lazy">
+            </div>
+          </div>
+        </section>
 
-  <footer class="footer">
-    <div class="container">
-      <p>&copy; 2026 Craftwood. ყველა უფლება დაცულია.</p>
+        <section id="view-consultation" class="view" data-view="consultation">
+          <div class="consultation-box">
+            <h1 id="consultation-title">შეუკვეთე კონსულტაცია</h1>
+            <p id="consultation-empty" class="page-empty page-empty--light">შინაარსი მალე დაემატება.</p>
+            <div id="consultation-content" class="hidden">
+              <p id="consultation-desc"></p>
+              <div class="consultation-links">
+                <a href="#" class="consultation-item" id="consultation-phone-link">
+                  <span class="consultation-label">ტელეფონი</span>
+                  <span id="consultation-phone"></span>
+                </a>
+                <a href="#" class="consultation-item" id="consultation-email-link">
+                  <span class="consultation-label">ელფოსტა</span>
+                  <span id="consultation-email"></span>
+                </a>
+              </div>
+              <a href="#" class="btn btn-primary" id="consultation-cta"></a>
+            </div>
+          </div>
+        </section>
+
+        <section id="view-gallery" class="view" data-view="gallery">
+          <header class="view-header">
+            <h1 id="gallery-title">სრული ნამუშევრები</h1>
+            <p id="gallery-subtitle"></p>
+          </header>
+          <div class="gallery-grid" id="gallery-grid"></div>
+        </section>
+      </main>
     </div>
-  </footer>
+  </div>
 
   <div class="lightbox" id="lightbox" aria-hidden="true">
     <button class="lightbox-close" aria-label="დახურვა">&times;</button>
     <button class="lightbox-prev" aria-label="წინა">&lsaquo;</button>
     <button class="lightbox-next" aria-label="შემდეგი">&rsaquo;</button>
-    <img class="lightbox-img" src="" alt="">
-    <p class="lightbox-caption"></p>
+    <div class="lightbox-inner">
+      <img class="lightbox-img" src="" alt="">
+      <aside class="lightbox-panel">
+        <p class="lightbox-caption"></p>
+        <div class="lightbox-reviews" id="lightbox-reviews"></div>
+        <form class="review-form" id="review-form">
+          <h3 class="review-form-title">დატოვე შეფასება</h3>
+          <label>
+            სახელი
+            <input type="text" id="review-author" required maxlength="80" placeholder="თქვენი სახელი">
+          </label>
+          <label>
+            შეფასება
+            <div class="star-input" id="review-stars" role="group" aria-label="შეფასება">
+              <button type="button" class="star-btn" data-value="1" aria-label="1">★</button>
+              <button type="button" class="star-btn" data-value="2" aria-label="2">★</button>
+              <button type="button" class="star-btn" data-value="3" aria-label="3">★</button>
+              <button type="button" class="star-btn" data-value="4" aria-label="4">★</button>
+              <button type="button" class="star-btn" data-value="5" aria-label="5">★</button>
+            </div>
+            <input type="hidden" id="review-rating" value="5" required>
+          </label>
+          <label>
+            კომენტარი
+            <textarea id="review-text" required maxlength="500" rows="3" placeholder="თქვენი კომენტარი..."></textarea>
+          </label>
+          <button type="submit" class="btn btn-primary btn-sm">გაგზავნა</button>
+          <p class="review-form-note" id="review-form-note"></p>
+        </form>
+      </aside>
+    </div>
   </div>
 
   <script src="js/config.js"></script>
+  <script src="js/reviews.js"></script>
   <script src="js/main.js"></script>
 </body>
 </html>

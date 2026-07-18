@@ -10,6 +10,9 @@ const repoInput = document.getElementById('repo-input');
 const userName = document.getElementById('user-name');
 const logoutBtn = document.getElementById('logout-btn');
 const itemsList = document.getElementById('items-list');
+const featuredList = document.getElementById('featured-list');
+const materialsList = document.getElementById('materials-list');
+const reviewsList = document.getElementById('reviews-list');
 const statusEl = document.getElementById('status');
 const uploadBtn = document.getElementById('upload-btn');
 const confirmDialog = document.getElementById('confirm-dialog');
@@ -41,7 +44,9 @@ const GALLERY_CATEGORIES = [
 const OTHER_CATEGORY = 'სხვა ...';
 
 let editingIndex = null;
+let editingReviewId = null;
 let galleryQueue = Promise.resolve();
+let siteQueue = Promise.resolve();
 
 function enqueueGallery(task) {
   const next = galleryQueue.then(task, task);
@@ -157,11 +162,234 @@ function readCategoryValue(selectEl, otherEl) {
   return selectEl.value;
 }
 
+function renderReviewStars(rating) {
+  const value = Math.max(1, Math.min(5, Number(rating) || 5));
+  return Array.from({ length: 5 }, (_, i) => {
+    const cls = i < value ? 'review-star is-filled' : 'review-star';
+    return `<span class="${cls}">★</span>`;
+  }).join('');
+}
+
+function getItemTitleBySrc(src) {
+  const item = cachedItems.find((entry) => entry.src === src);
+  return item?.title || src;
+}
+
+function countVisibleReviews(itemSrc) {
+  return cachedReviews.filter((review) => review.itemSrc === itemSrc && !review.hidden).length;
+}
+
+function renderReviewsModeration() {
+  if (!reviewsList) return;
+
+  if (!cachedReviews.length) {
+    reviewsList.innerHTML = '<p class="empty-list">კომენტარები ჯერ არ არის.</p>';
+    return;
+  }
+
+  const sorted = [...cachedReviews].sort((a, b) => String(b.date).localeCompare(String(a.date)));
+
+  reviewsList.innerHTML = sorted
+    .map((review) => {
+      const isEditing = editingReviewId === review.id;
+      if (isEditing) {
+        return `
+        <div class="review-mod-row review-mod-row--editing" data-review-id="${escapeHtml(review.id)}">
+          <div class="review-edit-form">
+            <p class="review-mod-item">${escapeHtml(getItemTitleBySrc(review.itemSrc))}</p>
+            <label>სახელი<input type="text" class="edit-review-author" value="${escapeHtml(review.author)}"></label>
+            <label>შეფასება
+              <select class="edit-review-rating">
+                ${[5, 4, 3, 2, 1].map((n) => `<option value="${n}"${review.rating === n ? ' selected' : ''}>${n} ★</option>`).join('')}
+              </select>
+            </label>
+            <label>კომენტარი<textarea class="edit-review-text" rows="2">${escapeHtml(review.text)}</textarea></label>
+            <div class="review-mod-actions review-mod-actions--row">
+              <button type="button" class="btn btn-primary btn-xs review-save-btn" data-id="${escapeHtml(review.id)}">შენახვა</button>
+              <button type="button" class="btn btn-ghost btn-xs review-cancel-btn">გაუქმება</button>
+            </div>
+          </div>
+        </div>`;
+      }
+
+      return `
+      <div class="review-mod-row${review.hidden ? ' review-mod-row--hidden' : ''}" data-review-id="${escapeHtml(review.id)}">
+        <div class="review-mod-main">
+          <p class="review-mod-item">${escapeHtml(getItemTitleBySrc(review.itemSrc))}</p>
+          <div class="review-mod-head">
+            <strong>${escapeHtml(review.author)}</strong>
+            <span class="review-edit-stars">${renderReviewStars(review.rating)}</span>
+            ${review.hidden ? '<span class="review-mod-badge">დამალული</span>' : ''}
+          </div>
+          <p class="review-mod-text">${escapeHtml(review.text)}</p>
+          ${review.date ? `<time class="review-mod-date">${escapeHtml(review.date)}</time>` : ''}
+        </div>
+        <div class="review-mod-actions">
+          <button type="button" class="btn btn-ghost btn-xs review-edit-btn" data-id="${escapeHtml(review.id)}">ჩასწორება</button>
+          <button type="button" class="btn btn-ghost btn-xs review-hide-btn" data-id="${escapeHtml(review.id)}" data-hidden="${review.hidden ? '0' : '1'}">
+            ${review.hidden ? 'გამოჩენა' : 'დამალვა'}
+          </button>
+          <button type="button" class="btn btn-danger btn-xs review-delete-btn" data-id="${escapeHtml(review.id)}">წაშლა</button>
+        </div>
+      </div>`;
+    })
+    .join('');
+
+  reviewsList.querySelectorAll('.review-edit-btn').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      editingReviewId = btn.dataset.id;
+      renderReviewsModeration();
+    });
+  });
+
+  reviewsList.querySelectorAll('.review-cancel-btn').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      editingReviewId = null;
+      renderReviewsModeration();
+    });
+  });
+
+  reviewsList.querySelectorAll('.review-save-btn').forEach((btn) => {
+    btn.addEventListener('click', () => saveReviewEdit(btn.dataset.id));
+  });
+
+  reviewsList.querySelectorAll('.review-hide-btn').forEach((btn) => {
+    btn.addEventListener('click', () => toggleReviewHidden(btn.dataset.id, btn.dataset.hidden === '1'));
+  });
+
+  reviewsList.querySelectorAll('.review-delete-btn').forEach((btn) => {
+    btn.addEventListener('click', () => deleteReview(btn.dataset.id));
+  });
+}
+
+async function saveReviewEdit(reviewId) {
+  const row = reviewsList.querySelector(`[data-review-id="${reviewId}"]`);
+  if (!row) return;
+
+  const author = row.querySelector('.edit-review-author')?.value.trim() || '';
+  const text = row.querySelector('.edit-review-text')?.value.trim() || '';
+  const rating = row.querySelector('.edit-review-rating')?.value || '5';
+
+  if (!author || !text) {
+    setStatus('სახელი და კომენტარი საჭიროა.', 'error');
+    return;
+  }
+
+  const reviewsApi = window.CraftwoodReviews;
+  if (!reviewsApi) return;
+
+  setStatus('ინახება...', '');
+  try {
+    const content = await reviewsApi.updateReviewFromRepo(
+      getToken(),
+      getRepo(),
+      getBranch(),
+      reviewId,
+      { author, text, rating }
+    );
+    cachedReviews = content.reviews.map(reviewsApi.normalizeReview);
+    editingReviewId = null;
+    renderReviewsModeration();
+    renderItemsFromCache();
+    setStatus('კომენტარი განახლდა.', 'success');
+  } catch (err) {
+    setStatus(err.message, 'error');
+  }
+}
+
+async function refreshReviews() {
+  const reviewsApi = window.CraftwoodReviews;
+  if (!reviewsApi) {
+    cachedReviews = [];
+    renderReviewsModeration();
+    return;
+  }
+
+  try {
+    cachedReviews = await reviewsApi.loadPublicReviews();
+    renderReviewsModeration();
+  } catch (err) {
+    reviewsList.innerHTML = `<p class="empty-list">${escapeHtml(err.message)}</p>`;
+  }
+}
+
+async function toggleReviewHidden(reviewId, hide) {
+  const reviewsApi = window.CraftwoodReviews;
+  if (!reviewsApi) return;
+
+  setStatus(hide ? 'იმალება...' : 'იხსნება...', '');
+
+  try {
+    const content = await reviewsApi.setReviewHidden(
+      getToken(),
+      getRepo(),
+      getBranch(),
+      reviewId,
+      hide
+    );
+    cachedReviews = content.reviews.map(reviewsApi.normalizeReview);
+    renderReviewsModeration();
+    renderItemsFromCache();
+    setStatus(hide ? 'შეფასება დამალულია.' : 'შეფასება გამოჩნდა.', 'success');
+  } catch (err) {
+    setStatus(err.message, 'error');
+    await refreshReviews();
+  }
+}
+
+async function deleteReview(reviewId) {
+  const review = cachedReviews.find((entry) => entry.id === reviewId);
+  if (!review) return;
+
+  confirmMessage.textContent = `«${review.author}» — ეს შეფასება სრულად წაიშლება.`;
+  confirmDialog.classList.remove('hidden');
+  confirmDialog.setAttribute('aria-hidden', 'false');
+
+  const confirmed = await new Promise((resolve) => {
+    const cleanup = (result) => {
+      confirmDialog.classList.add('hidden');
+      confirmDialog.setAttribute('aria-hidden', 'true');
+      confirmOkBtn.removeEventListener('click', onOk);
+      confirmCancelBtn.removeEventListener('click', onCancel);
+      resolve(result);
+    };
+    const onOk = () => cleanup(true);
+    const onCancel = () => cleanup(false);
+    confirmOkBtn.addEventListener('click', onOk);
+    confirmCancelBtn.addEventListener('click', onCancel);
+  });
+
+  if (!confirmed) return;
+
+  const reviewsApi = window.CraftwoodReviews;
+  if (!reviewsApi) return;
+
+  setStatus('იშლება...', '');
+
+  try {
+    const content = await reviewsApi.deleteReviewFromRepo(
+      getToken(),
+      getRepo(),
+      getBranch(),
+      reviewId
+    );
+    cachedReviews = content.reviews.map(reviewsApi.normalizeReview);
+    renderReviewsModeration();
+    renderItemsFromCache();
+    setStatus('შეფასება წაიშალა.', 'success');
+  } catch (err) {
+    setStatus(err.message, 'error');
+    await refreshReviews();
+  }
+}
+
 function initUploadCategorySelect() {
   const selectEl = document.getElementById('category-input');
   const otherEl = document.getElementById('category-other-input');
   fillCategorySelect(selectEl);
   bindCategorySelect(selectEl, otherEl);
+  const featuredCb = document.getElementById('upload-featured');
+  if (featuredCb) featuredCb.checked = true;
 }
 
 function assetUrl(relativePath) {
@@ -339,9 +567,210 @@ async function updateGallery(mutator, message) {
   return enqueueGallery(() => commitGalleryUpdate(mutator, message));
 }
 
+function enqueueSite(task) {
+  const next = siteQueue.then(task, task);
+  siteQueue = next.catch(() => {});
+  return next;
+}
+
+function initAdminTabs() {
+  document.querySelectorAll('.admin-tab').forEach((tab) => {
+    tab.addEventListener('click', () => {
+      const id = tab.dataset.tab;
+      document.querySelectorAll('.admin-tab').forEach((t) => t.classList.toggle('is-active', t.dataset.tab === id));
+      document.querySelectorAll('.tab-panel').forEach((p) => p.classList.toggle('is-active', p.dataset.tab === id));
+    });
+  });
+}
+
 async function loadGalleryData() {
   const { content } = await getFileContent('data/gallery.json');
   return content;
+}
+
+async function loadSiteData() {
+  try {
+    const { content } = await getFileContent('data/site.json');
+    return content;
+  } catch (err) {
+    if (err.status === 404) {
+      return {
+        brand: { name: 'Craftwood' },
+        sections: { featured: { title: '', subtitle: '' }, gallery: { title: '', subtitle: '' } },
+        about: { title: '', paragraphs: [], features: [], image: 'images/placeholder-1.svg' },
+        consultation: { title: '', description: '', phone: '', email: '', buttonText: '' },
+        materials: { title: '', subtitle: '', items: [] },
+      };
+    }
+    throw err;
+  }
+}
+
+async function commitSiteUpdate(mutator, message) {
+  for (let attempt = 0; attempt < 5; attempt++) {
+    let content;
+    let sha;
+    try {
+      ({ content, sha } = await getFileContent('data/site.json'));
+    } catch (err) {
+      if (err.status === 404) {
+        content = await loadSiteData();
+        sha = null;
+      } else throw err;
+    }
+    mutator(content);
+    try {
+      await putFile('data/site.json', JSON.stringify(content, null, 2) + '\n', message, sha);
+      return content;
+    } catch (err) {
+      if (!isGalleryConflict(err) || attempt === 4) throw err;
+      await sleep(350 * (attempt + 1));
+    }
+  }
+  throw new Error('site.json განახლება ვერ მოხერხდა.');
+}
+
+function populateSiteForms() {
+  const s = cachedSite;
+  document.getElementById('featured-section-title').value = s.sections?.featured?.title || '';
+  document.getElementById('featured-section-subtitle').value = s.sections?.featured?.subtitle || '';
+  document.getElementById('gallery-section-title').value = s.sections?.gallery?.title || '';
+  document.getElementById('gallery-section-subtitle').value = s.sections?.gallery?.subtitle || '';
+  document.getElementById('materials-title').value = s.materials?.title || '';
+  document.getElementById('materials-subtitle').value = s.materials?.subtitle || '';
+  document.getElementById('about-title').value = s.about?.title || '';
+  document.getElementById('about-p1').value = s.about?.paragraphs?.[0] || '';
+  document.getElementById('about-p2').value = s.about?.paragraphs?.[1] || '';
+  document.getElementById('about-f1').value = s.about?.features?.[0] || '';
+  document.getElementById('about-f2').value = s.about?.features?.[1] || '';
+  document.getElementById('about-f3').value = s.about?.features?.[2] || '';
+  document.getElementById('about-image-current').textContent = s.about?.image
+    ? `მიმდინარე: ${s.about.image}`
+    : '';
+  document.getElementById('consultation-title').value = s.consultation?.title || '';
+  document.getElementById('consultation-desc').value = s.consultation?.description || '';
+  document.getElementById('consultation-phone').value = s.consultation?.phone || '';
+  document.getElementById('consultation-email').value = s.consultation?.email || '';
+  document.getElementById('consultation-button').value = s.consultation?.buttonText || '';
+}
+
+function renderFeaturedList() {
+  if (!featuredList) return;
+  if (!cachedItems.length) {
+    featuredList.innerHTML = '<p class="empty-list">ჯერ ნამუშევრები არ არის.</p>';
+    return;
+  }
+
+  featuredList.innerHTML = cachedItems
+    .map(
+      (item, index) => `
+      <label class="featured-row">
+        <input type="checkbox" class="featured-toggle" data-index="${index}"${item.featured ? ' checked' : ''}>
+        <img src="${imagePreviewUrl(item.src)}" alt="" class="featured-thumb">
+        <span>
+          <strong>${escapeHtml(item.title)}</strong>
+          <small>${escapeHtml(item.category)}</small>
+        </span>
+      </label>
+    `
+    )
+    .join('');
+
+  featuredList.querySelectorAll('.featured-toggle').forEach((cb) => {
+    cb.addEventListener('change', () => toggleFeatured(Number(cb.dataset.index), cb.checked));
+  });
+}
+
+async function toggleFeatured(index, featured) {
+  const targetSrc = cachedItems[index]?.src;
+  if (!targetSrc) return;
+
+  setStatus('ინახება...', '');
+  try {
+    const content = await updateGallery((data) => {
+      const i = data.items.findIndex((item) => item.src === targetSrc);
+      if (i === -1) return false;
+      if (featured) data.items[i].featured = true;
+      else delete data.items[i].featured;
+      return true;
+    }, `Toggle featured: ${cachedItems[index].title}`);
+    cachedItems = content.items;
+    renderFeaturedList();
+    renderItems(cachedItems);
+    setStatus(featured ? 'დაემატა განსაკუთრებულებში.' : 'ამოიღო განსაკუთრებულებიდან.', 'success');
+  } catch (err) {
+    setStatus(err.message, 'error');
+    renderFeaturedList();
+  }
+}
+
+function renderMaterialsList() {
+  if (!materialsList) return;
+  const items = cachedSite.materials?.items || [];
+  if (!items.length) {
+    materialsList.innerHTML = '<p class="empty-list">მასალები ჯერ არ არის.</p>';
+    return;
+  }
+
+  materialsList.innerHTML = items
+    .map(
+      (m) => `
+      <div class="item-row" data-material-id="${escapeHtml(m.id)}">
+        <img src="${imagePreviewUrl(m.image)}" alt="">
+        <div class="item-info">
+          <h3>${escapeHtml(m.name)}</h3>
+          <p>${escapeHtml(m.description)}</p>
+        </div>
+        <div class="item-actions">
+          <button type="button" class="btn btn-danger btn-xs material-delete-btn" data-id="${escapeHtml(m.id)}">წაშლა</button>
+        </div>
+      </div>
+    `
+    )
+    .join('');
+
+  materialsList.querySelectorAll('.material-delete-btn').forEach((btn) => {
+    btn.addEventListener('click', () => deleteMaterial(btn.dataset.id));
+  });
+}
+
+async function deleteMaterial(materialId) {
+  const mat = cachedSite.materials?.items?.find((m) => m.id === materialId);
+  if (!mat) return;
+  confirmMessage.textContent = `«${mat.name}» — წაიშლება.`;
+  confirmDialog.classList.remove('hidden');
+  confirmDialog.setAttribute('aria-hidden', 'false');
+  const confirmed = await new Promise((resolve) => {
+    const cleanup = (r) => {
+      confirmDialog.classList.add('hidden');
+      confirmDialog.setAttribute('aria-hidden', 'true');
+      confirmOkBtn.removeEventListener('click', onOk);
+      confirmCancelBtn.removeEventListener('click', onCancel);
+      resolve(r);
+    };
+    const onOk = () => cleanup(true);
+    const onCancel = () => cleanup(false);
+    confirmOkBtn.addEventListener('click', onOk);
+    confirmCancelBtn.addEventListener('click', onCancel);
+  });
+  if (!confirmed) return;
+
+  setStatus('იშლება...', '');
+  try {
+    cachedSite = await enqueueSite(() =>
+      commitSiteUpdate((site) => {
+        site.materials.items = site.materials.items.filter((m) => m.id !== materialId);
+        return true;
+      }, `Delete material ${mat.name}`)
+    );
+    if (isUploadedImage(mat.image)) {
+      await deleteRepoFile(mat.image, `Delete material image: ${mat.name}`);
+    }
+    renderMaterialsList();
+    setStatus('მასალა წაიშალა.', 'success');
+  } catch (err) {
+    setStatus(err.message, 'error');
+  }
 }
 
 function renderItems(items) {
@@ -372,12 +801,15 @@ function renderItems(items) {
         `;
       }
 
+      const reviewCount = countVisibleReviews(item.src);
+
       return `
         <div class="item-row" data-index="${index}">
           <img src="${imgSrc}" alt="${escapeHtml(item.title)}" onerror="this.classList.add('img-error')">
           <div class="item-info">
             <h3>${escapeHtml(item.title)}</h3>
             <p>${escapeHtml(item.category)}</p>
+            ${reviewCount ? `<p class="item-reviews-count">${reviewCount} კომენტარი</p>` : ''}
             <p class="item-path">${escapeHtml(item.src)}</p>
           </div>
           <div class="item-actions">
@@ -419,6 +851,8 @@ function renderItems(items) {
 }
 
 let cachedItems = [];
+let cachedReviews = [];
+let cachedSite = {};
 
 function renderItemsFromCache() {
   renderItems(cachedItems);
@@ -426,14 +860,19 @@ function renderItemsFromCache() {
 
 async function refreshItems() {
   try {
-    const data = await loadGalleryData();
-    cachedItems = data.items || [];
+    const [galleryData, siteData] = await Promise.all([loadGalleryData(), loadSiteData()]);
+    cachedItems = galleryData.items || [];
+    cachedSite = siteData;
     if (editingIndex !== null && editingIndex >= cachedItems.length) {
       editingIndex = null;
     }
+    populateSiteForms();
     renderItems(cachedItems);
+    renderFeaturedList();
+    renderMaterialsList();
+    await refreshReviews();
   } catch (err) {
-    itemsList.innerHTML = `<p class="empty-list">${escapeHtml(err.message)}</p>`;
+    if (itemsList) itemsList.innerHTML = `<p class="empty-list">${escapeHtml(err.message)}</p>`;
   }
 }
 
@@ -443,6 +882,7 @@ async function showPanel() {
   loginSection.classList.add('hidden');
   panelSection.classList.remove('hidden');
   initUploadCategorySelect();
+  initAdminTabs();
   await refreshItems();
 }
 
@@ -505,16 +945,21 @@ uploadForm.addEventListener('submit', async (e) => {
       await putBinaryFile(imagePath, base64, `Add image: ${title}`);
 
       return commitGalleryUpdate((gallery) => {
-        gallery.items.push({ src: imagePath, title, category });
+        const item = { src: imagePath, title, category };
+        const featuredCb = document.getElementById('upload-featured');
+        if (featuredCb?.checked ?? true) item.featured = true;
+        gallery.items.push(item);
         return true;
       }, `Add gallery item: ${title}`);
     });
 
     cachedItems = content.items;
     uploadForm.reset();
+    initUploadCategorySelect();
     editingIndex = null;
     renderItems(cachedItems);
-    setStatus('ფოტო წარმატებით აიტვირთა! საიტი განახლდება 1-2 წუთში.', 'success');
+    renderFeaturedList();
+    setStatus('ფოტო წარმატებით აიტვირთა!', 'success');
   } catch (err) {
     setStatus(err.message, 'error');
   } finally {
@@ -547,6 +992,8 @@ async function saveItem(index) {
   if (saveBtn) saveBtn.disabled = true;
 
   try {
+    let replacedPath = null;
+
     const content = await enqueueGallery(async () => {
       let newPath = null;
       let oldPath = null;
@@ -557,6 +1004,7 @@ async function saveItem(index) {
         const base64 = await fileToBase64(newFile);
         await putBinaryFile(newPath, base64, `Replace image: ${title}`);
         oldPath = targetSrc;
+        replacedPath = newPath;
       }
 
       const gallery = await commitGalleryUpdate((items) => {
@@ -579,9 +1027,21 @@ async function saveItem(index) {
       return gallery;
     });
 
+    if (replacedPath && window.CraftwoodReviews) {
+      await window.CraftwoodReviews.updateReviewsItemSrc(
+        getToken(),
+        getRepo(),
+        getBranch(),
+        targetSrc,
+        replacedPath
+      );
+    }
+
     cachedItems = content.items;
     editingIndex = null;
     renderItems(cachedItems);
+    renderFeaturedList();
+    await refreshReviews();
     setStatus('წარმატებით შეინახა ცვლილება', 'success');
   } catch (err) {
     await refreshItems();
@@ -625,8 +1085,19 @@ async function deleteItem(index) {
       return gallery;
     });
 
+    if (window.CraftwoodReviews) {
+      await window.CraftwoodReviews.deleteReviewsForItem(
+        getToken(),
+        getRepo(),
+        getBranch(),
+        targetSrc
+      );
+    }
+
     cachedItems = content.items;
     renderItems(cachedItems);
+    renderFeaturedList();
+    await refreshReviews();
     setStatus('წაიშალა!', 'success');
   } catch (err) {
     cachedItems = backup;
@@ -640,3 +1111,147 @@ if (getToken()) {
     sessionStorage.removeItem(STORAGE_KEY);
   });
 }
+
+document.getElementById('save-featured-section')?.addEventListener('click', async () => {
+  setStatus('ინახება...', '');
+  try {
+    cachedSite = await enqueueSite(() =>
+      commitSiteUpdate((site) => {
+        site.sections = site.sections || {};
+        site.sections.featured = {
+          title: document.getElementById('featured-section-title').value.trim(),
+          subtitle: document.getElementById('featured-section-subtitle').value.trim(),
+        };
+      }, 'Update featured section')
+    );
+    setStatus('განსაკუთრებული სექცია შენახულია.', 'success');
+  } catch (err) {
+    setStatus(err.message, 'error');
+  }
+});
+
+document.getElementById('save-gallery-section')?.addEventListener('click', async () => {
+  setStatus('ინახება...', '');
+  try {
+    cachedSite = await enqueueSite(() =>
+      commitSiteUpdate((site) => {
+        site.sections = site.sections || {};
+        site.sections.gallery = {
+          title: document.getElementById('gallery-section-title').value.trim(),
+          subtitle: document.getElementById('gallery-section-subtitle').value.trim(),
+        };
+      }, 'Update gallery section')
+    );
+    setStatus('გალერეის სექცია შენახულია.', 'success');
+  } catch (err) {
+    setStatus(err.message, 'error');
+  }
+});
+
+document.getElementById('save-materials-header')?.addEventListener('click', async () => {
+  setStatus('ინახება...', '');
+  try {
+    cachedSite = await enqueueSite(() =>
+      commitSiteUpdate((site) => {
+        site.materials = site.materials || { items: [] };
+        site.materials.title = document.getElementById('materials-title').value.trim();
+        site.materials.subtitle = document.getElementById('materials-subtitle').value.trim();
+      }, 'Update materials header')
+    );
+    setStatus('მასალების სათაური შენახულია.', 'success');
+  } catch (err) {
+    setStatus(err.message, 'error');
+  }
+});
+
+document.getElementById('material-form')?.addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const name = document.getElementById('material-name').value.trim();
+  const description = document.getElementById('material-desc').value.trim();
+  const file = document.getElementById('material-image').files[0];
+  if (!name || !description || !file) return;
+
+  setStatus('იტვირთება...', '');
+  try {
+    const ext = file.name.split('.').pop().toLowerCase();
+    const imagePath = `images/uploads/mat-${Date.now()}.${ext}`;
+    const base64 = await fileToBase64(file);
+    await putBinaryFile(imagePath, base64, `Add material: ${name}`);
+
+    cachedSite = await enqueueSite(() =>
+      commitSiteUpdate((site) => {
+        site.materials = site.materials || { title: 'მასალები', subtitle: '', items: [] };
+        if (!Array.isArray(site.materials.items)) site.materials.items = [];
+        site.materials.items.push({
+          id: `mat-${Date.now()}`,
+          name,
+          description,
+          image: imagePath,
+        });
+      }, `Add material: ${name}`)
+    );
+    e.target.reset();
+    renderMaterialsList();
+    setStatus('მასალა დაემატა.', 'success');
+  } catch (err) {
+    setStatus(err.message, 'error');
+  }
+});
+
+document.getElementById('about-form')?.addEventListener('submit', async (e) => {
+  e.preventDefault();
+  setStatus('ინახება...', '');
+  try {
+    let imagePath = cachedSite.about?.image || 'images/placeholder-1.svg';
+    const imageFile = document.getElementById('about-image').files[0];
+    if (imageFile) {
+      const ext = imageFile.name.split('.').pop().toLowerCase();
+      imagePath = `images/uploads/about-${Date.now()}.${ext}`;
+      const base64 = await fileToBase64(imageFile);
+      await putBinaryFile(imagePath, base64, 'Update about image');
+    }
+
+    cachedSite = await enqueueSite(() =>
+      commitSiteUpdate((site) => {
+        site.about = {
+          title: document.getElementById('about-title').value.trim(),
+          paragraphs: [
+            document.getElementById('about-p1').value.trim(),
+            document.getElementById('about-p2').value.trim(),
+          ].filter(Boolean),
+          features: [
+            document.getElementById('about-f1').value.trim(),
+            document.getElementById('about-f2').value.trim(),
+            document.getElementById('about-f3').value.trim(),
+          ].filter(Boolean),
+          image: imagePath,
+        };
+      }, 'Update about section')
+    );
+    populateSiteForms();
+    setStatus('ჩვენს შესახებ შენახულია.', 'success');
+  } catch (err) {
+    setStatus(err.message, 'error');
+  }
+});
+
+document.getElementById('consultation-form')?.addEventListener('submit', async (e) => {
+  e.preventDefault();
+  setStatus('ინახება...', '');
+  try {
+    cachedSite = await enqueueSite(() =>
+      commitSiteUpdate((site) => {
+        site.consultation = {
+          title: document.getElementById('consultation-title').value.trim(),
+          description: document.getElementById('consultation-desc').value.trim(),
+          phone: document.getElementById('consultation-phone').value.trim(),
+          email: document.getElementById('consultation-email').value.trim(),
+          buttonText: document.getElementById('consultation-button').value.trim(),
+        };
+      }, 'Update consultation section')
+    );
+    setStatus('კონსულტაციის სექცია შენახულია.', 'success');
+  } catch (err) {
+    setStatus(err.message, 'error');
+  }
+});

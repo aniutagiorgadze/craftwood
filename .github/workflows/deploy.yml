@@ -23,6 +23,20 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Inject review token (optional)
+        env:
+          REVIEW_TOKEN: ${{ secrets.REVIEW_WRITE_TOKEN }}
+        run: |
+          if [ -n "$REVIEW_TOKEN" ]; then
+            node -e "
+              const fs = require('fs');
+              const p = 'js/config.js';
+              let s = fs.readFileSync(p, 'utf8');
+              s = s.replace(/reviewWriteToken:\\s*'[^']*'/, \"reviewWriteToken: '\" + process.env.REVIEW_TOKEN + \"'\");
+              fs.writeFileSync(p, s);
+            "
+          fi
+
       - name: Setup Pages
         uses: actions/configure-pages@v5
         with:

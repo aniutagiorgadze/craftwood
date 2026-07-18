@@ -3,22 +3,26 @@
     {
       "src": "images/uploads/photo-1784147145422.png",
       "title": "კარადა — ani",
-      "category": "irakli"
+      "category": "irakli",
+      "featured": true
     },
     {
       "src": "images/uploads/1784135816974-სათაური.jpg",
       "title": "სათაური",
-      "category": "კატეგორია"
+      "category": "კატეგორია",
+      "featured": true
     },
     {
       "src": "images/uploads/photo-1784146176270.jpg",
       "title": "ani",
-      "category": "irakli"
+      "category": "irakli",
+      "featured": true
     },
     {
       "src": "images/uploads/photo-1784388788309.jpg",
       "title": "ტესტ",
-      "category": "ტესტ1"
+      "category": "ტესტ1",
+      "featured": true
     },
     {
       "src": "images/uploads/photo-1784389371196.jpg",

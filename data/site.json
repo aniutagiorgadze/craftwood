@@ -1,0 +1,33 @@
+{
+  "brand": {
+    "name": "Craftwood"
+  },
+  "sections": {
+    "featured": {
+      "title": "განსაკუთრებული ნამუშევრები",
+      "subtitle": ""
+    },
+    "gallery": {
+      "title": "სრული ნამუშევრები",
+      "subtitle": ""
+    }
+  },
+  "about": {
+    "title": "ჩვენს შესახებ",
+    "paragraphs": [],
+    "features": [],
+    "image": ""
+  },
+  "consultation": {
+    "title": "შეუკვეთე კონსულტაცია",
+    "description": "",
+    "phone": "",
+    "email": "",
+    "buttonText": ""
+  },
+  "materials": {
+    "title": "მასალები",
+    "subtitle": "",
+    "items": []
+  }
+}
