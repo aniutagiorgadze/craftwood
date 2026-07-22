@@ -6,148 +6,182 @@
   <title>Craftwood — ადმინ პანელი</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+Georgian:wght@400;500;600&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@500;700&family=Noto+Sans+Georgian:wght@400;500;600&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="admin.css">
 </head>
 <body>
-  <div class="admin">
-    <header class="admin-header">
-      <h1>Craftwood ადმინი</h1>
-      <a href="../index.html" class="back-link">← საიტზე დაბრუნება</a>
-    </header>
-
-    <section id="login-section" class="card">
-      <h2>შესვლა</h2>
-      <p class="hint">შეიყვანეთ GitHub Personal Access Token რეპოზიტორიის რედაქტირების უფლებით.</p>
-      <form id="login-form">
-        <label>
-          GitHub Token
-          <input type="password" id="token-input" required placeholder="ghp_...">
-        </label>
-        <label>
-          რეპოზიტორია
-          <input type="text" id="repo-input" required placeholder="username/craftwood">
-        </label>
-        <button type="submit" class="btn btn-primary">შესვლა</button>
-      </form>
-      <p class="help">
-        <strong>ტოკენის შექმნა (Classic):</strong>
-        <a href="https://github.com/settings/tokens/new" target="_blank" rel="noopener">github.com/settings/tokens/new</a>
-        — მონიშნეთ მხოლოდ <strong>repo</strong>.
-      </p>
-    </section>
-
-    <section id="panel-section" class="hidden">
-      <div class="panel-top">
-        <p>შესული ხართ როგორც <strong id="user-name"></strong></p>
-        <button id="logout-btn" class="btn btn-ghost">გასვლა</button>
-      </div>
-
-      <p id="status" class="status status-global" aria-live="polite"></p>
-
-      <nav class="admin-tabs" id="admin-tabs">
-        <button type="button" class="admin-tab is-active" data-tab="featured">განსაკუთრებული</button>
-        <button type="button" class="admin-tab" data-tab="gallery">ნამუშევრები</button>
-        <button type="button" class="admin-tab" data-tab="materials">მასალები</button>
-        <button type="button" class="admin-tab" data-tab="about">ჩვენს შესახებ</button>
-        <button type="button" class="admin-tab" data-tab="consultation">კონსულტაცია</button>
-        <button type="button" class="admin-tab" data-tab="comments">კომენტარები</button>
+  <div class="app">
+    <aside class="sidebar" id="sidebar">
+      <button class="sidebar-close" id="sidebar-close" aria-label="მენიუს დახურვა">&times;</button>
+      <a href="#featured" class="sidebar-brand" id="sidebar-brand">
+        <span class="sidebar-brand-name">Craftwood</span>
+        <span class="sidebar-brand-tag">ადმინ პანელი</span>
+      </a>
+      <nav class="sidebar-nav hidden" id="sidebar-nav" aria-label="ადმინ მენიუ">
+        <a href="#featured" class="sidebar-link is-active" data-tab="featured">განსაკუთრებული ნამუშევრები</a>
+        <a href="#materials" class="sidebar-link" data-tab="materials">მასალები</a>
+        <a href="#about" class="sidebar-link" data-tab="about">ჩვენს შესახებ</a>
+        <a href="#consultation" class="sidebar-link" data-tab="consultation">შეუკვეთე კონსულტაცია</a>
+        <a href="#gallery" class="sidebar-link" data-tab="gallery">სრული ნამუშევრები</a>
+        <a href="#comments" class="sidebar-link sidebar-link--admin" data-tab="comments">კომენტარები</a>
       </nav>
+      <footer class="sidebar-footer">
+        <a href="../index.html" class="sidebar-back">← საიტზე დაბრუნება</a>
+        <p class="sidebar-user hidden" id="sidebar-user">შესული: <strong id="user-name"></strong></p>
+        <button type="button" id="logout-btn" class="btn btn-ghost btn-sm hidden">გასვლა</button>
+      </footer>
+    </aside>
 
-      <div class="tab-panel is-active" data-tab="featured">
-        <div class="card">
-          <h2>განსაკუთრებული ნამუშევრები</h2>
-          <p class="hint">მონიშნეთ ნამუშევრები, რომლებიც პირველ გვერდზე გამოჩნდება.</p>
-          <label>სათაური<input type="text" id="featured-section-title"></label>
-          <label>ქვესათაური<input type="text" id="featured-section-subtitle"></label>
-          <button type="button" class="btn btn-primary" id="save-featured-section">სექციის შენახვა</button>
-          <div id="featured-list" class="items-list featured-list"></div>
-        </div>
-      </div>
+    <div class="app-main">
+      <header class="mobile-header">
+        <button class="menu-toggle" id="menu-toggle" aria-label="მენიუ" aria-expanded="false">
+          <span></span><span></span><span></span>
+        </button>
+        <span class="mobile-title" id="mobile-title">Craftwood ადმინი</span>
+      </header>
 
-      <div class="tab-panel" data-tab="gallery">
-        <div class="card">
-          <h2>ახალი ფოტოს დამატება</h2>
-          <form id="upload-form">
-            <label>სურათი<input type="file" id="image-input" accept="image/*" required></label>
-            <label>სათაური<input type="text" id="title-input" required placeholder="მაგ. მაგიდა"></label>
-            <label>კატეგორია
-              <select id="category-input" required></select>
-              <input type="text" id="category-other-input" class="category-other hidden" placeholder="ჩაწერეთ კატეგორია">
-            </label>
-            <label class="checkbox-label">
-              <input type="checkbox" id="upload-featured" checked> განსაკუთრებული (მთავარ გვერდზე)
-            </label>
-            <button type="submit" class="btn btn-primary" id="upload-btn">ატვირთვა</button>
-          </form>
-        </div>
-        <div class="card">
-          <h2>სრული ნამუშევრები</h2>
-          <label>სათაური<input type="text" id="gallery-section-title"></label>
-          <label>ქვესათაური<input type="text" id="gallery-section-subtitle"></label>
-          <button type="button" class="btn btn-primary" id="save-gallery-section">სექციის შენახვა</button>
-          <div id="items-list" class="items-list"></div>
-        </div>
-      </div>
+      <main class="content">
+        <section id="login-section" class="login-section">
+          <div class="card login-card">
+            <h2>შესვლა</h2>
+            <p class="hint">შეიყვანეთ GitHub Personal Access Token რეპოზიტორიის რედაქტირების უფლებით.</p>
+            <form id="login-form">
+              <label>
+                GitHub Token
+                <input type="password" id="token-input" required placeholder="ghp_...">
+              </label>
+              <label>
+                რეპოზიტორია
+                <input type="text" id="repo-input" required placeholder="username/craftwood">
+              </label>
+              <button type="submit" class="btn btn-primary">შესვლა</button>
+            </form>
+            <p class="help">
+              <strong>ტოკენის შექმნა (Classic):</strong>
+              <a href="https://github.com/settings/tokens/new" target="_blank" rel="noopener">github.com/settings/tokens/new</a>
+              — მონიშნეთ მხოლოდ <strong>repo</strong>.
+            </p>
+          </div>
+        </section>
 
-      <div class="tab-panel" data-tab="materials">
-        <div class="card">
-          <h2>მასალები</h2>
-          <label>სათაური<input type="text" id="materials-title"></label>
-          <label>ქვესათაური<input type="text" id="materials-subtitle"></label>
-          <button type="button" class="btn btn-primary" id="save-materials-header">სათაურის შენახვა</button>
-          <hr class="divider">
-          <h3>ახალი მასალა</h3>
-          <form id="material-form">
-            <label>სახელი<input type="text" id="material-name" required></label>
-            <label>აღწერა<textarea id="material-desc" rows="2" required></textarea></label>
-            <label>სურათი<input type="file" id="material-image" accept="image/*" required></label>
-            <button type="submit" class="btn btn-primary">დამატება</button>
-          </form>
-          <div id="materials-list" class="items-list"></div>
-        </div>
-      </div>
+        <section id="panel-section" class="hidden">
+          <p id="status" class="status status-global" aria-live="polite"></p>
 
-      <div class="tab-panel" data-tab="about">
-        <div class="card">
-          <h2>ჩვენს შესახებ</h2>
-          <form id="about-form">
-            <label>სათაური<input type="text" id="about-title"></label>
-            <label>აბზაცი 1<textarea id="about-p1" rows="3"></textarea></label>
-            <label>აბზაცი 2<textarea id="about-p2" rows="3"></textarea></label>
-            <label>თვისება 1<input type="text" id="about-f1"></label>
-            <label>თვისება 2<input type="text" id="about-f2"></label>
-            <label>თვისება 3<input type="text" id="about-f3"></label>
-            <label>სურათი (არასავალდებულო)<input type="file" id="about-image" accept="image/*"></label>
-            <p class="hint" id="about-image-current"></p>
-            <button type="submit" class="btn btn-primary">შენახვა</button>
-          </form>
-        </div>
-      </div>
+          <div class="admin-view is-active" data-tab="featured">
+            <header class="view-header">
+              <p class="view-eyebrow">მთავარი გვერდი</p>
+              <h1>განსაკუთრებული ნამუშევრები</h1>
+            </header>
+            <div class="card">
+              <p class="hint">მონიშნეთ ნამუშევრები, რომლებიც პირველ გვერდზე გამოჩნდება.</p>
+              <label>სათაური<input type="text" id="featured-section-title"></label>
+              <label>ქვესათაური<input type="text" id="featured-section-subtitle"></label>
+              <button type="button" class="btn btn-primary" id="save-featured-section">სექციის შენახვა</button>
+              <div id="featured-list" class="items-list featured-list"></div>
+            </div>
+          </div>
 
-      <div class="tab-panel" data-tab="consultation">
-        <div class="card">
-          <h2>შეუკვეთე კონსულტაცია</h2>
-          <form id="consultation-form">
-            <label>სათაური<input type="text" id="consultation-title"></label>
-            <label>აღწერა<textarea id="consultation-desc" rows="3"></textarea></label>
-            <label>ტელეფონი<input type="text" id="consultation-phone"></label>
-            <label>ელფოსტა<input type="email" id="consultation-email"></label>
-            <label>ღილაკის ტექსტი<input type="text" id="consultation-button"></label>
-            <button type="submit" class="btn btn-primary">შენახვა</button>
-          </form>
-        </div>
-      </div>
+          <div class="admin-view" data-tab="gallery">
+            <header class="view-header">
+              <p class="view-eyebrow">გალერეა</p>
+              <h1>სრული ნამუშევრები</h1>
+            </header>
+            <div class="card">
+              <h2>ახალი ფოტოს დამატება</h2>
+              <form id="upload-form">
+                <label>სურათი<input type="file" id="image-input" accept="image/*" required></label>
+                <label>სათაური<input type="text" id="title-input" required placeholder="მაგ. მაგიდა"></label>
+                <label>კატეგორია
+                  <select id="category-input" required></select>
+                  <input type="text" id="category-other-input" class="category-other hidden" placeholder="ჩაწერეთ კატეგორია">
+                </label>
+                <label class="checkbox-label">
+                  <input type="checkbox" id="upload-featured" checked> განსაკუთრებული (მთავარ გვერდზე)
+                </label>
+                <button type="submit" class="btn btn-primary" id="upload-btn">ატვირთვა</button>
+              </form>
+            </div>
+            <div class="card">
+              <h2>არსებული ნამუშევრები</h2>
+              <label>სათაური<input type="text" id="gallery-section-title"></label>
+              <label>ქვესათაური<input type="text" id="gallery-section-subtitle"></label>
+              <button type="button" class="btn btn-primary" id="save-gallery-section">სექციის შენახვა</button>
+              <div id="items-list" class="items-list"></div>
+            </div>
+          </div>
 
-      <div class="tab-panel" data-tab="comments">
-        <div class="card">
-          <h2>კომენტარების მოდerაცია</h2>
-          <p class="hint">სტუმრები ტოვებენ შეფასებას (1–5 ვარსკვლავი) და კომენტარს სურათებზე. შეგიძლიათ ჩასწოროთ, დამალოთ ან წაშალოთ.</p>
-          <p class="hint">საიტზე შენახვისთვის დაამატეთ GitHub Secret: <strong>REVIEW_WRITE_TOKEN</strong> (Classic token, repo scope).</p>
-          <div id="reviews-list" class="reviews-moderation-list"></div>
-        </div>
-      </div>
-    </section>
+          <div class="admin-view" data-tab="materials">
+            <header class="view-header">
+              <p class="view-eyebrow">კონტენტი</p>
+              <h1>მასალები</h1>
+            </header>
+            <div class="card">
+              <label>სათაური<input type="text" id="materials-title"></label>
+              <label>ქვესათაური<input type="text" id="materials-subtitle"></label>
+              <button type="button" class="btn btn-primary" id="save-materials-header">სათაურის შენახვა</button>
+              <hr class="divider">
+              <h2>ახალი მასალა</h2>
+              <form id="material-form">
+                <label>სახელი<input type="text" id="material-name" required></label>
+                <label>აღწერა<textarea id="material-desc" rows="2" required></textarea></label>
+                <label>სურათი<input type="file" id="material-image" accept="image/*" required></label>
+                <button type="submit" class="btn btn-primary">დამატება</button>
+              </form>
+              <div id="materials-list" class="items-list"></div>
+            </div>
+          </div>
+
+          <div class="admin-view" data-tab="about">
+            <header class="view-header">
+              <p class="view-eyebrow">კონტენტი</p>
+              <h1>ჩვენს შესახებ</h1>
+            </header>
+            <div class="card">
+              <form id="about-form">
+                <label>სათაური<input type="text" id="about-title"></label>
+                <label>აბზაცი 1<textarea id="about-p1" rows="3"></textarea></label>
+                <label>აბზაცი 2<textarea id="about-p2" rows="3"></textarea></label>
+                <label>თვისება 1<input type="text" id="about-f1"></label>
+                <label>თვისება 2<input type="text" id="about-f2"></label>
+                <label>თვისება 3<input type="text" id="about-f3"></label>
+                <label>სურათი (არასავალდებულო)<input type="file" id="about-image" accept="image/*"></label>
+                <p class="hint" id="about-image-current"></p>
+                <button type="submit" class="btn btn-primary">შენახვა</button>
+              </form>
+            </div>
+          </div>
+
+          <div class="admin-view" data-tab="consultation">
+            <header class="view-header">
+              <p class="view-eyebrow">კონტაქტი</p>
+              <h1>შეუკვეთე კონსულტაცია</h1>
+            </header>
+            <div class="card">
+              <form id="consultation-form">
+                <label>სათაური<input type="text" id="consultation-title"></label>
+                <label>აღწერა<textarea id="consultation-desc" rows="3"></textarea></label>
+                <label>ტელეფონი<input type="text" id="consultation-phone"></label>
+                <label>ელფოსტა<input type="email" id="consultation-email"></label>
+                <label>ღილაკის ტექსტი<input type="text" id="consultation-button"></label>
+                <button type="submit" class="btn btn-primary">შენახვა</button>
+              </form>
+            </div>
+          </div>
+
+          <div class="admin-view" data-tab="comments">
+            <header class="view-header">
+              <p class="view-eyebrow">მოდერაცია</p>
+              <h1>კომენტარები</h1>
+            </header>
+            <div class="card">
+              <p class="hint">სტუმრები ტოვებენ შეფასებას (1–5 ვარსკვლავი) და კომენტარს სურათებზე. შეგიძლიათ ჩასწოროთ, დამალოთ ან წაშალოთ.</p>
+              <p class="hint">საიტზე შენახვისთვის დაამატეთ GitHub Secret: <strong>REVIEW_WRITE_TOKEN</strong> (Classic token, repo scope).</p>
+              <div id="reviews-list" class="reviews-moderation-list"></div>
+            </div>
+          </div>
+        </section>
+      </main>
+    </div>
   </div>
 
   <div id="confirm-dialog" class="confirm-dialog hidden" aria-hidden="true">

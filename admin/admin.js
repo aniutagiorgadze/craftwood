@@ -9,6 +9,13 @@ const tokenInput = document.getElementById('token-input');
 const repoInput = document.getElementById('repo-input');
 const userName = document.getElementById('user-name');
 const logoutBtn = document.getElementById('logout-btn');
+const sidebarNav = document.getElementById('sidebar-nav');
+const sidebarUser = document.getElementById('sidebar-user');
+const sidebar = document.getElementById('sidebar');
+const sidebarClose = document.getElementById('sidebar-close');
+const menuToggle = document.getElementById('menu-toggle');
+const mobileTitle = document.getElementById('mobile-title');
+const sidebarBrand = document.getElementById('sidebar-brand');
 const itemsList = document.getElementById('items-list');
 const featuredList = document.getElementById('featured-list');
 const materialsList = document.getElementById('materials-list');
@@ -42,6 +49,17 @@ const GALLERY_CATEGORIES = [
 ];
 
 const OTHER_CATEGORY = 'სხვა ...';
+
+const ADMIN_VIEWS = ['featured', 'materials', 'about', 'consultation', 'gallery', 'comments'];
+
+const ADMIN_VIEW_TITLES = {
+  featured: 'განსაკუთრებული ნამუშევრები',
+  materials: 'მასალები',
+  about: 'ჩვენს შესახებ',
+  consultation: 'შეუკვეთე კონსულტაცია',
+  gallery: 'სრული ნამუშევრები',
+  comments: 'კომენტარები',
+};
 
 let editingIndex = null;
 let editingReviewId = null;
@@ -573,14 +591,85 @@ function enqueueSite(task) {
   return next;
 }
 
-function initAdminTabs() {
-  document.querySelectorAll('.admin-tab').forEach((tab) => {
-    tab.addEventListener('click', () => {
-      const id = tab.dataset.tab;
-      document.querySelectorAll('.admin-tab').forEach((t) => t.classList.toggle('is-active', t.dataset.tab === id));
-      document.querySelectorAll('.tab-panel').forEach((p) => p.classList.toggle('is-active', p.dataset.tab === id));
+function closeSidebar() {
+  sidebar?.classList.remove('is-open');
+  menuToggle?.setAttribute('aria-expanded', 'false');
+  document.querySelector('.sidebar-overlay')?.remove();
+}
+
+function openSidebar() {
+  sidebar?.classList.add('is-open');
+  menuToggle?.setAttribute('aria-expanded', 'true');
+  if (!document.querySelector('.sidebar-overlay')) {
+    const overlay = document.createElement('div');
+    overlay.className = 'sidebar-overlay is-visible';
+    overlay.addEventListener('click', closeSidebar);
+    document.body.appendChild(overlay);
+  }
+}
+
+function switchAdminView(tabId) {
+  const view = ADMIN_VIEWS.includes(tabId) ? tabId : 'featured';
+
+  document.querySelectorAll('.sidebar-link').forEach((link) => {
+    link.classList.toggle('is-active', link.dataset.tab === view);
+  });
+  document.querySelectorAll('.admin-view').forEach((panel) => {
+    panel.classList.toggle('is-active', panel.dataset.tab === view);
+  });
+
+  if (mobileTitle) {
+    mobileTitle.textContent = ADMIN_VIEW_TITLES[view] || 'Craftwood ადმინი';
+  }
+
+  closeSidebar();
+}
+
+let navInitialized = false;
+
+function initAdminNav() {
+  const hash = location.hash.replace('#', '');
+  const view = ADMIN_VIEWS.includes(hash) ? hash : 'featured';
+  if (panelSection && !panelSection.classList.contains('hidden') && (!hash || !ADMIN_VIEWS.includes(hash))) {
+    history.replaceState(null, '', `#${view}`);
+  }
+  switchAdminView(view);
+
+  if (navInitialized) return;
+  navInitialized = true;
+
+  document.querySelectorAll('.sidebar-link').forEach((link) => {
+    link.addEventListener('click', (e) => {
+      const tabId = link.dataset.tab;
+      if (!tabId) return;
+      e.preventDefault();
+      history.pushState(null, '', `#${tabId}`);
+      switchAdminView(tabId);
     });
   });
+
+  sidebarBrand?.addEventListener('click', (e) => {
+    if (panelSection?.classList.contains('hidden')) return;
+    e.preventDefault();
+    history.pushState(null, '', '#featured');
+    switchAdminView('featured');
+  });
+
+  window.addEventListener('popstate', () => {
+    if (panelSection?.classList.contains('hidden')) return;
+    const h = location.hash.replace('#', '') || 'featured';
+    switchAdminView(ADMIN_VIEWS.includes(h) ? h : 'featured');
+  });
+}
+
+function setLoggedInUi(isLoggedIn) {
+  sidebarNav?.classList.toggle('hidden', !isLoggedIn);
+  sidebarUser?.classList.toggle('hidden', !isLoggedIn);
+  logoutBtn?.classList.toggle('hidden', !isLoggedIn);
+}
+
+function initAdminTabs() {
+  initAdminNav();
 }
 
 async function loadGalleryData() {
@@ -881,8 +970,9 @@ async function showPanel() {
   userName.textContent = user.login;
   loginSection.classList.add('hidden');
   panelSection.classList.remove('hidden');
+  setLoggedInUi(true);
   initUploadCategorySelect();
-  initAdminTabs();
+  initAdminNav();
   await refreshItems();
 }
 
@@ -913,8 +1003,17 @@ logoutBtn.addEventListener('click', () => {
   sessionStorage.removeItem(STORAGE_KEY);
   panelSection.classList.add('hidden');
   loginSection.classList.remove('hidden');
+  setLoggedInUi(false);
   setStatus('');
+  closeSidebar();
+  if (mobileTitle) mobileTitle.textContent = 'Craftwood ადმინი';
+  history.replaceState(null, '', location.pathname);
 });
+
+menuToggle?.addEventListener('click', () => {
+  sidebar?.classList.contains('is-open') ? closeSidebar() : openSidebar();
+});
+sidebarClose?.addEventListener('click', closeSidebar);
 
 uploadForm.addEventListener('submit', async (e) => {
   e.preventDefault();
