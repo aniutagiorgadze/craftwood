@@ -11,11 +11,16 @@ const reviewText = document.getElementById('review-text');
 const reviewRating = document.getElementById('review-rating');
 const reviewStars = document.getElementById('review-stars');
 const reviewFormNote = document.getElementById('review-form-note');
+const consultationForm = document.getElementById('consultation-form');
+const requestPhone = document.getElementById('request-phone');
+const requestMessage = document.getElementById('request-message');
+const consultationFormNote = document.getElementById('consultation-form-note');
 const sidebar = document.getElementById('sidebar');
 const menuToggle = document.getElementById('menu-toggle');
 const sidebarClose = document.getElementById('sidebar-close');
 const config = window.CRAFTWOOD_CONFIG || {};
 const reviewsApi = window.CraftwoodReviews;
+const requestsApi = window.CraftwoodRequests;
 
 let siteData = {};
 let galleryItems = [];
@@ -203,22 +208,52 @@ function renderAbout() {
 
 function renderConsultation() {
   const c = siteData.consultation || DEFAULT_SITE.consultation;
-  const hasContent = c.description || c.phone || c.email || c.buttonText;
+  document.getElementById('consultation-title').textContent = c.title || DEFAULT_SITE.consultation.title;
+  const descEl = document.getElementById('consultation-desc');
+  if (c.description) {
+    descEl.textContent = c.description;
+    descEl.classList.remove('hidden');
+  } else {
+    descEl.textContent = '';
+    descEl.classList.add('hidden');
+  }
+}
 
-  document.getElementById('consultation-title').textContent = c.title || 'შეუკვეთე კონსულტაცია';
-  document.getElementById('consultation-empty').classList.toggle('hidden', hasContent);
-  document.getElementById('consultation-content').classList.toggle('hidden', !hasContent);
+async function submitConsultationRequest(e) {
+  e.preventDefault();
+  if (!requestsApi) return;
 
-  if (!hasContent) return;
+  const phone = requestPhone.value.trim();
+  const message = requestMessage.value.trim();
+  const token = config.reviewWriteToken;
+  const repo = config.repo;
+  const branch = config.branch || 'main';
 
-  document.getElementById('consultation-desc').textContent = c.description || '';
-  document.getElementById('consultation-phone').textContent = c.phone || '';
-  document.getElementById('consultation-email').textContent = c.email || '';
-  document.getElementById('consultation-phone-link').href = c.phone ? `tel:${c.phone.replace(/\s/g, '')}` : '#';
-  document.getElementById('consultation-email-link').href = c.email ? `mailto:${c.email}` : '#';
-  const cta = document.getElementById('consultation-cta');
-  cta.textContent = c.buttonText || 'დაგვიკავშირდით';
-  cta.href = c.phone ? `tel:${c.phone.replace(/\s/g, '')}` : '#';
+  if (!phone || !message) return;
+
+  const submitBtn = document.getElementById('request-submit');
+  submitBtn.disabled = true;
+  consultationFormNote.textContent = 'იგზავნება...';
+  consultationFormNote.className = 'consultation-form-note';
+
+  try {
+    if (token && repo) {
+      await requestsApi.submitRequestToRepo(token, repo, branch, { phone, message });
+    } else {
+      requestsApi.saveLocalRequest({ phone, message });
+    }
+
+    consultationForm.reset();
+    consultationFormNote.textContent = token
+      ? 'გმადლობთ! მოთხოვნა მიღებულია, მალე დაგიკავშირდებით.'
+      : 'გმადლობთ! მოთხოვნა შენახულია (ლოკალურად).';
+    consultationFormNote.className = 'consultation-form-note is-success';
+  } catch {
+    consultationFormNote.textContent = 'გაგზავნა ვერ მოხერხდა. სცადეთ თავიდან.';
+    consultationFormNote.className = 'consultation-form-note is-error';
+  } finally {
+    submitBtn.disabled = false;
+  }
 }
 
 function renderSiteContent() {
@@ -416,6 +451,7 @@ reviewStars.querySelectorAll('.star-btn').forEach((btn) => {
 });
 
 reviewForm.addEventListener('submit', submitComment);
+consultationForm?.addEventListener('submit', submitConsultationRequest);
 lightbox.querySelector('.lightbox-close').addEventListener('click', closeLightbox);
 lightbox.querySelector('.lightbox-prev').addEventListener('click', showPrev);
 lightbox.querySelector('.lightbox-next').addEventListener('click', showNext);

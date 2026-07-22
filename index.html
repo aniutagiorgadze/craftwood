@@ -72,21 +72,19 @@
         <section id="view-consultation" class="view" data-view="consultation">
           <div class="consultation-box">
             <h1 id="consultation-title">შეუკვეთე კონსულტაცია</h1>
-            <p id="consultation-empty" class="page-empty page-empty--light">შინაარსი მალე დაემატება.</p>
-            <div id="consultation-content" class="hidden">
-              <p id="consultation-desc"></p>
-              <div class="consultation-links">
-                <a href="#" class="consultation-item" id="consultation-phone-link">
-                  <span class="consultation-label">ტელეფონი</span>
-                  <span id="consultation-phone"></span>
-                </a>
-                <a href="#" class="consultation-item" id="consultation-email-link">
-                  <span class="consultation-label">ელფოსტა</span>
-                  <span id="consultation-email"></span>
-                </a>
-              </div>
-              <a href="#" class="btn btn-primary" id="consultation-cta"></a>
-            </div>
+            <p id="consultation-desc" class="consultation-intro hidden"></p>
+            <form class="consultation-form" id="consultation-form">
+              <label>
+                ტელეფონის ნომერი
+                <input type="tel" id="request-phone" required placeholder="მაგ. 555 12 34 56" autocomplete="tel">
+              </label>
+              <label>
+                მოთხოვნა
+                <textarea id="request-message" required rows="4" maxlength="1000" placeholder="აღწერეთ რა გჭირდებათ..."></textarea>
+              </label>
+              <button type="submit" class="btn btn-primary" id="request-submit">გაგზავნა</button>
+              <p class="consultation-form-note" id="consultation-form-note"></p>
+            </form>
           </div>
         </section>
 
@@ -140,6 +138,7 @@
 
   <script src="js/config.js"></script>
   <script src="js/reviews.js"></script>
+  <script src="js/requests.js"></script>
   <script src="js/main.js"></script>
 </body>
 </html>

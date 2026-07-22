@@ -586,6 +586,61 @@ a {
   background: var(--color-bg);
 }
 
+.consultation-intro {
+  opacity: 0.9;
+  margin-bottom: 1.5rem;
+}
+
+.consultation-form label {
+  display: block;
+  margin-bottom: 1.1rem;
+  font-size: 0.88rem;
+  font-weight: 500;
+}
+
+.consultation-form input,
+.consultation-form textarea {
+  display: block;
+  width: 100%;
+  margin-top: 0.45rem;
+  padding: 0.75rem 0.9rem;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 8px;
+  font: inherit;
+  background: rgba(255, 255, 255, 0.1);
+  color: #f5ebe0;
+}
+
+.consultation-form input::placeholder,
+.consultation-form textarea::placeholder {
+  color: rgba(245, 235, 224, 0.45);
+}
+
+.consultation-form input:focus,
+.consultation-form textarea:focus {
+  outline: 2px solid rgba(255, 255, 255, 0.35);
+  outline-offset: 1px;
+}
+
+.consultation-form textarea {
+  resize: vertical;
+  min-height: 110px;
+}
+
+.consultation-form-note {
+  margin-top: 0.85rem;
+  font-size: 0.85rem;
+  min-height: 1.2em;
+}
+
+.consultation-form-note.is-success {
+  color: #c8e6c9;
+}
+
+.consultation-form-note.is-error {
+  color: #ffcdd2;
+}
+
 /* Lightbox */
 .lightbox {
   position: fixed;

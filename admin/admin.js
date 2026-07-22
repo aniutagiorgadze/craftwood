@@ -20,6 +20,7 @@ const itemsList = document.getElementById('items-list');
 const featuredList = document.getElementById('featured-list');
 const materialsList = document.getElementById('materials-list');
 const reviewsList = document.getElementById('reviews-list');
+const requestsList = document.getElementById('requests-list');
 const statusEl = document.getElementById('status');
 const uploadBtn = document.getElementById('upload-btn');
 const confirmDialog = document.getElementById('confirm-dialog');
@@ -56,7 +57,7 @@ const ADMIN_VIEW_TITLES = {
   featured: 'განსაკუთრებული ნამუშევრები',
   materials: 'მასალები',
   about: 'ჩვენს შესახებ',
-  consultation: 'შეუკვეთე კონსულტაცია',
+  consultation: 'შეკვეთების მოთხოვნები',
   gallery: 'სრული ნამუშევრები',
   comments: 'კომენტარები',
 };
@@ -196,6 +197,185 @@ function getItemTitleBySrc(src) {
 function countVisibleReviews(itemSrc) {
   return cachedReviews.filter((review) => review.itemSrc === itemSrc && !review.hidden).length;
 }
+
+
+let cachedRequests = [];
+
+function formatRequestDate(iso) {
+  if (!iso) return '';
+  try {
+    return new Date(iso).toLocaleDateString('ka-GE', {
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric',
+    });
+  } catch {
+    return iso;
+  }
+}
+
+function renderRequestsList() {
+  if (!requestsList) return;
+
+  if (!cachedRequests.length) {
+    requestsList.innerHTML = '<p class="empty-list">მოთხოვნები ჯერ არ არის.</p>';
+    return;
+  }
+
+  const sorted = [...cachedRequests].sort((a, b) => String(b.date).localeCompare(String(a.date)));
+
+  requestsList.innerHTML = sorted
+    .map((req) => {
+      const tel = req.phone.replace(/\s/g, '');
+      return `
+      <div class="request-row${req.called ? ' request-row--called' : ''}" data-request-id="${escapeHtml(req.id)}">
+        <div class="request-main">
+          <div class="request-head">
+            <a href="tel:${escapeHtml(tel)}" class="request-phone">${escapeHtml(req.phone)}</a>
+            ${req.date ? `<time class="request-date">${escapeHtml(formatRequestDate(req.date))}</time>` : ''}
+          </div>
+          <p class="request-message">${escapeHtml(req.message)}</p>
+          <label class="request-called-label">
+            <input type="checkbox" class="request-called-toggle" data-id="${escapeHtml(req.id)}"${req.called ? ' checked' : ''}>
+            დავრეკე
+          </label>
+          <label class="request-note-label">
+            შენიშვნა
+            <textarea class="request-note-input" data-id="${escapeHtml(req.id)}" rows="2" placeholder="მაგ. დავრეკე, შევთანხმდით შეხვედრაზე...">${escapeHtml(req.adminNote || '')}</textarea>
+          </label>
+          <button type="button" class="btn btn-primary btn-xs request-note-save" data-id="${escapeHtml(req.id)}">შენიშვნის შენახვა</button>
+        </div>
+        <div class="request-actions">
+          <button type="button" class="btn btn-danger btn-xs request-delete-btn" data-id="${escapeHtml(req.id)}">წაშლა</button>
+        </div>
+      </div>`;
+    })
+    .join('');
+
+  requestsList.querySelectorAll('.request-called-toggle').forEach((cb) => {
+    cb.addEventListener('change', () => toggleRequestCalled(cb.dataset.id, cb.checked));
+  });
+
+  requestsList.querySelectorAll('.request-note-save').forEach((btn) => {
+    btn.addEventListener('click', () => saveRequestNote(btn.dataset.id));
+  });
+
+  requestsList.querySelectorAll('.request-delete-btn').forEach((btn) => {
+    btn.addEventListener('click', () => deleteRequest(btn.dataset.id));
+  });
+}
+
+async function refreshRequests() {
+  const requestsApi = window.CraftwoodRequests;
+  if (!requestsApi) {
+    cachedRequests = [];
+    renderRequestsList();
+    return;
+  }
+
+  try {
+    cachedRequests = await requestsApi.loadAllRequests();
+    renderRequestsList();
+  } catch (err) {
+    if (requestsList) {
+      requestsList.innerHTML = `<p class="empty-list">${escapeHtml(err.message)}</p>`;
+    }
+  }
+}
+
+async function toggleRequestCalled(requestId, called) {
+  const requestsApi = window.CraftwoodRequests;
+  if (!requestsApi) return;
+
+  setStatus(called ? 'ინიშნება...' : 'იხსნება...', '');
+
+  try {
+    const content = await requestsApi.updateRequestFromRepo(
+      getToken(),
+      getRepo(),
+      getBranch(),
+      requestId,
+      { called }
+    );
+    cachedRequests = content.requests.map(requestsApi.normalizeRequest);
+    renderRequestsList();
+    setStatus(called ? 'მონიშნულია.' : 'მონიშვnuა მოხსნილია.', 'success');
+  } catch (err) {
+    setStatus(err.message, 'error');
+    await refreshRequests();
+  }
+}
+
+async function saveRequestNote(requestId) {
+  const requestsApi = window.CraftwoodRequests;
+  if (!requestsApi) return;
+
+  const row = requestsList.querySelector(`.request-row[data-request-id="${requestId}"]`);
+  const note = row?.querySelector('.request-note-input')?.value.trim() || '';
+
+  setStatus('ინახება...', '');
+
+  try {
+    const content = await requestsApi.updateRequestFromRepo(
+      getToken(),
+      getRepo(),
+      getBranch(),
+      requestId,
+      { adminNote: note }
+    );
+    cachedRequests = content.requests.map(requestsApi.normalizeRequest);
+    renderRequestsList();
+    setStatus('შენიშვნა შენახულია.', 'success');
+  } catch (err) {
+    setStatus(err.message, 'error');
+  }
+}
+
+async function deleteRequest(requestId) {
+  const req = cachedRequests.find((entry) => entry.id === requestId);
+  if (!req) return;
+
+  confirmMessage.textContent = `${req.phone} — ეს მოთხოვნა სრულად წაიშლება.`;
+  confirmDialog.classList.remove('hidden');
+  confirmDialog.setAttribute('aria-hidden', 'false');
+
+  const confirmed = await new Promise((resolve) => {
+    const cleanup = (result) => {
+      confirmDialog.classList.add('hidden');
+      confirmDialog.setAttribute('aria-hidden', 'true');
+      confirmOkBtn.removeEventListener('click', onOk);
+      confirmCancelBtn.removeEventListener('click', onCancel);
+      resolve(result);
+    };
+    const onOk = () => cleanup(true);
+    const onCancel = () => cleanup(false);
+    confirmOkBtn.addEventListener('click', onOk);
+    confirmCancelBtn.addEventListener('click', onCancel);
+  });
+
+  if (!confirmed) return;
+
+  const requestsApi = window.CraftwoodRequests;
+  if (!requestsApi) return;
+
+  setStatus('იშლება...', '');
+
+  try {
+    const content = await requestsApi.deleteRequestFromRepo(
+      getToken(),
+      getRepo(),
+      getBranch(),
+      requestId
+    );
+    cachedRequests = content.requests.map(requestsApi.normalizeRequest);
+    renderRequestsList();
+    setStatus('მოთხოვნა წაიშალა.', 'success');
+  } catch (err) {
+    setStatus(err.message, 'error');
+    await refreshRequests();
+  }
+}
+
 
 function renderReviewsModeration() {
   if (!reviewsList) return;
@@ -736,11 +916,6 @@ function populateSiteForms() {
   document.getElementById('about-image-current').textContent = s.about?.image
     ? `მიმდინარე: ${s.about.image}`
     : '';
-  document.getElementById('consultation-title').value = s.consultation?.title || '';
-  document.getElementById('consultation-desc').value = s.consultation?.description || '';
-  document.getElementById('consultation-phone').value = s.consultation?.phone || '';
-  document.getElementById('consultation-email').value = s.consultation?.email || '';
-  document.getElementById('consultation-button').value = s.consultation?.buttonText || '';
 }
 
 function renderFeaturedList() {
@@ -960,6 +1135,7 @@ async function refreshItems() {
     renderFeaturedList();
     renderMaterialsList();
     await refreshReviews();
+    await refreshRequests();
   } catch (err) {
     if (itemsList) itemsList.innerHTML = `<p class="empty-list">${escapeHtml(err.message)}</p>`;
   }
@@ -1334,23 +1510,3 @@ document.getElementById('about-form')?.addEventListener('submit', async (e) => {
   }
 });
 
-document.getElementById('consultation-form')?.addEventListener('submit', async (e) => {
-  e.preventDefault();
-  setStatus('ინახება...', '');
-  try {
-    cachedSite = await enqueueSite(() =>
-      commitSiteUpdate((site) => {
-        site.consultation = {
-          title: document.getElementById('consultation-title').value.trim(),
-          description: document.getElementById('consultation-desc').value.trim(),
-          phone: document.getElementById('consultation-phone').value.trim(),
-          email: document.getElementById('consultation-email').value.trim(),
-          buttonText: document.getElementById('consultation-button').value.trim(),
-        };
-      }, 'Update consultation section')
-    );
-    setStatus('კონსულტაციის სექცია შენახულია.', 'success');
-  } catch (err) {
-    setStatus(err.message, 'error');
-  }
-});

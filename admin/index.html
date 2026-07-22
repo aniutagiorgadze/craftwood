@@ -21,7 +21,7 @@
         <a href="#featured" class="sidebar-link is-active" data-tab="featured">განსაკუთრებული ნამუშევრები</a>
         <a href="#materials" class="sidebar-link" data-tab="materials">მასალები</a>
         <a href="#about" class="sidebar-link" data-tab="about">ჩვენს შესახებ</a>
-        <a href="#consultation" class="sidebar-link" data-tab="consultation">შეუკვეთე კონსულტაცია</a>
+        <a href="#consultation" class="sidebar-link" data-tab="consultation">შეკვეთების მოთხოვნები</a>
         <a href="#gallery" class="sidebar-link" data-tab="gallery">სრული ნამუშევრები</a>
         <a href="#comments" class="sidebar-link sidebar-link--admin" data-tab="comments">კომენტარები</a>
       </nav>
@@ -153,18 +153,13 @@
 
           <div class="admin-view" data-tab="consultation">
             <header class="view-header">
-              <p class="view-eyebrow">კონტაქტი</p>
-              <h1>შეუკვეთე კონსულტაცია</h1>
+              <p class="view-eyebrow">შემომავალი</p>
+              <h1>შეკვეთების მოთხოვნები</h1>
             </header>
             <div class="card">
-              <form id="consultation-form">
-                <label>სათაური<input type="text" id="consultation-title"></label>
-                <label>აღწერა<textarea id="consultation-desc" rows="3"></textarea></label>
-                <label>ტელეფონი<input type="text" id="consultation-phone"></label>
-                <label>ელფოსტა<input type="email" id="consultation-email"></label>
-                <label>ღილაკის ტექსტი<input type="text" id="consultation-button"></label>
-                <button type="submit" class="btn btn-primary">შენახვა</button>
-              </form>
+              <p class="hint">საიტის „შეუკვეთე კონსულტაცია“ გვერდიდან მოსული მოთხოვნები. მონიშნეთ „დავრეკე“, როცა უკვე დაუკავშირდებით, და დაწერეთ შენიშვნა.</p>
+                            <p class="hint">Live საიტზე შენახვისთვის GitHub Secret: <strong>REVIEW_WRITE_TOKEN</strong> (Classic token, repo scope).</p>
+              <div id="requests-list" class="requests-list"></div>
             </div>
           </div>
 
@@ -197,6 +192,7 @@
 
   <script src="../js/config.js"></script>
   <script src="../js/reviews.js"></script>
+  <script src="../js/requests.js"></script>
   <script src="admin.js"></script>
 </body>
 </html>
