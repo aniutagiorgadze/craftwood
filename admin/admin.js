@@ -253,11 +253,29 @@ function renderRequestsList() {
     .join('');
 
   requestsList.querySelectorAll('.request-called-toggle').forEach((cb) => {
-    cb.addEventListener('change', () => toggleRequestCalled(cb.dataset.id, cb.checked));
+    cb.addEventListener('change', () => {
+      persistRequestUpdate(
+        cb.dataset.id,
+        { called: cb.checked },
+        cb.checked ? 'დარეკვა მონიშნულია და შენახულია.' : 'მონიშვნა მოხსნილია.'
+      );
+    });
   });
 
   requestsList.querySelectorAll('.request-note-save').forEach((btn) => {
-    btn.addEventListener('click', () => saveRequestNote(btn.dataset.id));
+    btn.addEventListener('click', () => {
+      const note = getRequestRowValues(btn.dataset.id).adminNote;
+      persistRequestUpdate(btn.dataset.id, { adminNote: note }, 'შენიშვნა შენახულია.');
+    });
+  });
+
+  requestsList.querySelectorAll('.request-note-input').forEach((textarea) => {
+    textarea.addEventListener('blur', () => {
+      const req = cachedRequests.find((r) => r.id === textarea.dataset.id);
+      const note = textarea.value.trim();
+      if (req && note === (req.adminNote || '')) return;
+      persistRequestUpdate(textarea.dataset.id, { adminNote: note }, 'შენიშვნა შენახულია.');
+    });
   });
 
   requestsList.querySelectorAll('.request-delete-btn').forEach((btn) => {
@@ -283,51 +301,41 @@ async function refreshRequests() {
   }
 }
 
-async function toggleRequestCalled(requestId, called) {
-  const requestsApi = window.CraftwoodRequests;
-  if (!requestsApi) return;
-
-  setStatus(called ? 'ინიშნება...' : 'იხსნება...', '');
-
-  try {
-    const content = await requestsApi.updateRequestFromRepo(
-      getToken(),
-      getRepo(),
-      getBranch(),
-      requestId,
-      { called }
-    );
-    cachedRequests = content.requests.map(requestsApi.normalizeRequest);
-    renderRequestsList();
-    setStatus(called ? 'მონიშნულია.' : 'მონიშვnuა მოხსნილია.', 'success');
-  } catch (err) {
-    setStatus(err.message, 'error');
-    await refreshRequests();
-  }
+function getRequestRowValues(requestId) {
+  const row = requestsList?.querySelector(
+    `.request-row[data-request-id="${CSS.escape(requestId)}"]`
+  );
+  return {
+    called: Boolean(row?.querySelector('.request-called-toggle')?.checked),
+    adminNote: row?.querySelector('.request-note-input')?.value.trim() || '',
+  };
 }
 
-async function saveRequestNote(requestId) {
+async function persistRequestUpdate(requestId, updates, statusMessage) {
   const requestsApi = window.CraftwoodRequests;
   if (!requestsApi) return;
 
-  const row = requestsList.querySelector(`.request-row[data-request-id="${requestId}"]`);
-  const note = row?.querySelector('.request-note-input')?.value.trim() || '';
+  const rowValues = getRequestRowValues(requestId);
 
   setStatus('ინახება...', '');
 
   try {
-    const content = await requestsApi.updateRequestFromRepo(
+    const content = await requestsApi.adminUpdateRequest(
       getToken(),
       getRepo(),
       getBranch(),
       requestId,
-      { adminNote: note }
+      {
+        called: updates.called !== undefined ? updates.called : rowValues.called,
+        adminNote: updates.adminNote !== undefined ? updates.adminNote : rowValues.adminNote,
+      }
     );
     cachedRequests = content.requests.map(requestsApi.normalizeRequest);
     renderRequestsList();
-    setStatus('შენიშვნა შენახულია.', 'success');
+    setStatus(statusMessage, 'success');
   } catch (err) {
     setStatus(err.message, 'error');
+    await refreshRequests();
   }
 }
 
@@ -361,7 +369,7 @@ async function deleteRequest(requestId) {
   setStatus('იშლება...', '');
 
   try {
-    const content = await requestsApi.deleteRequestFromRepo(
+    const content = await requestsApi.adminDeleteRequest(
       getToken(),
       getRepo(),
       getBranch(),

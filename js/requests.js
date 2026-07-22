@@ -154,13 +154,38 @@ function saveLocalRequest(request) {
   return entry;
 }
 
+function saveLocalRequestsList(requests) {
+  localStorage.setItem(
+    LOCAL_REQUESTS_KEY,
+    JSON.stringify({ requests: requests.map(normalizeRequest) }, null, 2)
+  );
+}
+
+function updateLocalRequest(requestId, updates) {
+  const requests = loadLocalRequests();
+  const request = requests.find((r) => r.id === requestId);
+  if (!request) return false;
+  if (updates.called !== undefined) request.called = Boolean(updates.called);
+  if (updates.adminNote !== undefined) request.adminNote = String(updates.adminNote).trim();
+  saveLocalRequestsList(requests);
+  return true;
+}
+
+function deleteLocalRequest(requestId) {
+  const requests = loadLocalRequests();
+  const next = requests.filter((r) => r.id !== requestId);
+  if (next.length === requests.length) return false;
+  saveLocalRequestsList(next);
+  return true;
+}
+
 async function loadAllRequests() {
   const [server, local] = await Promise.all([
     loadPublicRequests(),
     Promise.resolve(loadLocalRequests()),
   ]);
   const merged = new Map();
-  [...server, ...local].forEach((request) => merged.set(request.id, request));
+  [...local, ...server].forEach((request) => merged.set(request.id, request));
   return Array.from(merged.values());
 }
 
@@ -219,6 +244,54 @@ async function deleteRequestFromRepo(token, repo, branch, requestId) {
   );
 }
 
+async function adminUpdateRequest(token, repo, branch, requestId, updates) {
+  const inLocal = loadLocalRequests().some((r) => r.id === requestId);
+  let githubContent = null;
+
+  if (token && repo) {
+    try {
+      githubContent = await updateRequestFromRepo(token, repo, branch, requestId, updates);
+    } catch (err) {
+      if (!inLocal) throw err;
+    }
+  }
+
+  if (inLocal) {
+    updateLocalRequest(requestId, updates);
+  }
+
+  if (githubContent) return githubContent;
+
+  const requests = await loadAllRequests();
+  return {
+    requests: requests.map((r) =>
+      r.id === requestId ? normalizeRequest({ ...r, ...updates }) : r
+    ),
+  };
+}
+
+async function adminDeleteRequest(token, repo, branch, requestId) {
+  const inLocal = loadLocalRequests().some((r) => r.id === requestId);
+  let githubContent = null;
+
+  if (token && repo) {
+    try {
+      githubContent = await deleteRequestFromRepo(token, repo, branch, requestId);
+    } catch (err) {
+      if (!inLocal) throw err;
+    }
+  }
+
+  if (inLocal) {
+    deleteLocalRequest(requestId);
+  }
+
+  if (githubContent) return githubContent;
+
+  const requests = await loadAllRequests();
+  return { requests: requests.filter((r) => r.id !== requestId) };
+}
+
 window.CraftwoodRequests = {
   loadPublicRequests,
   loadAllRequests,
@@ -227,6 +300,8 @@ window.CraftwoodRequests = {
   submitRequestToRepo,
   updateRequestFromRepo,
   deleteRequestFromRepo,
+  adminUpdateRequest,
+  adminDeleteRequest,
   getRequestsFile,
   normalizeRequest,
 };
